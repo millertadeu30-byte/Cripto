@@ -1,0 +1,220 @@
+import React, { useState } from 'react';
+import { Target, TrendingUp, Sparkles, Clock, AlertCircle, HelpCircle } from 'lucide-react';
+import { Trade, Recommendation } from '../types';
+
+interface ProfitGoalConfiguratorProps {
+  trades: Trade[];
+  recommendations: Recommendation[];
+  marketPrices: { [key: string]: number };
+  usdtBrl: number;
+}
+
+export default function ProfitGoalConfigurator({
+  trades,
+  recommendations,
+  marketPrices,
+  usdtBrl
+}: ProfitGoalConfiguratorProps) {
+  const [goalPercent, setGoalPercent] = useState<number>(5); // Default 5%
+  const [showExplanation, setShowExplanation] = useState(false);
+
+  // Calculate estimated time for current holdings
+  // We can calculate this by looking at their current PNL and typical movement speeds
+  const getProjections = () => {
+    if (trades.length === 0) {
+      return {
+        hasHoldings: false,
+        estimatedHours: 0,
+        easiestAssetToGoal: "Nenhum ativo comprado",
+        reasoning: "Você não possui nenhuma moeda comprada no momento. Cadastre uma compra para ver as projeções de tempo de ganho!"
+      };
+    }
+
+    // Evaluate user's primary holding by invested size
+    const primaryTrade = [...trades].sort((a, b) => b.totalInvested - a.totalInvested)[0];
+    const livePrice = marketPrices[primaryTrade.symbol] || primaryTrade.purchasePrice;
+    const currentPnlPercent = ((livePrice - primaryTrade.purchasePrice) / primaryTrade.purchasePrice) * 100;
+    
+    // Remaining profit percent required to hit user's goal
+    const remainingToGoal = goalPercent - currentPnlPercent;
+
+    let estimatedHours = 0;
+    let reasoning = "";
+
+    if (remainingToGoal <= 0) {
+      estimatedHours = 0;
+      reasoning = `Parabéns! Sua operação de ${primaryTrade.symbol} já atingiu a meta de ${goalPercent}% de lucro! O lucro acumulado atual é de ${currentPnlPercent.toFixed(2)}%. Recomendamos configurar sua ordem de venda na Binance imediatamente!`;
+    } else {
+      // Average hourly volatility assumption: Solana 0.8%/hr, Bitcoin 0.25%/hr, Towns 2%/hr, Pepe 3%/hr etc.
+      let hourlySpeed = 0.5; // default fallback
+      if (primaryTrade.symbol.includes('PEPE') || primaryTrade.symbol.includes('WIF')) {
+        hourlySpeed = 1.8; // Meme coins are faster
+      } else if (primaryTrade.symbol.includes('SOL') || primaryTrade.symbol.includes('SUI')) {
+        hourlySpeed = 0.9;
+      } else if (primaryTrade.symbol.includes('BTC')) {
+        hourlySpeed = 0.3; // BTC is safer but slower
+      } else if (primaryTrade.symbol.includes('TOWNS')) {
+        hourlySpeed = 2.2; // Altcoins and smaller caps have high volatility
+      }
+
+      estimatedHours = Math.max(0.5, Number((remainingToGoal / hourlySpeed).toFixed(1)));
+      
+      const timeString = estimatedHours >= 24 
+        ? `${Math.round(estimatedHours / 24)} dia(s)` 
+        : `${estimatedHours} hora(s)`;
+
+      reasoning = `Seu ativo principal é ${primaryTrade.symbol} (Lucro Atual: ${currentPnlPercent.toFixed(2)}%). Para atingir sua meta de +${goalPercent}%, ainda faltam ${remainingToGoal.toFixed(2)}%. No ritmo atual de volatilidade, estimamos cerca de ${timeString} de mercado favorável para alcançar esta meta.`;
+    }
+
+    // Determine the easiest asset to reach this goal based on recommendations (positive momentum + high estimated profit)
+    let easiestAssetToGoal = "SOLUSDT (Solana)";
+    let easiestAssetReason = "A Solana apresenta a melhor liquidez combinada com momentum de alta nas últimas horas, facilitando o ganho rápido de metas pequenas.";
+
+    if (recommendations.length > 0) {
+      // Find the recommendation with the highest estimatedProfit but within reasonable risk
+      const bestRec = [...recommendations].sort((a, b) => {
+        // Prefer higher estimated profits that are closest to our goal
+        const diffA = Math.abs(a.estimatedProfit - goalPercent);
+        const diffB = Math.abs(b.estimatedProfit - goalPercent);
+        return diffA - diffB;
+      })[0];
+
+      if (bestRec) {
+        easiestAssetToGoal = `${bestRec.symbol} (${bestRec.coinName})`;
+        easiestAssetReason = `Recomendamos a moeda ${bestRec.coinName} (${bestRec.symbol}). O robô detectou que ela tem um lucro esperado de +${bestRec.estimatedProfit.toFixed(1)}% em um tempo estimado de ${bestRec.timeframe}, o que se alinha muito bem com a sua meta de +${goalPercent}%!`;
+      }
+    }
+
+    return {
+      hasHoldings: true,
+      estimatedHours,
+      easiestAssetToGoal,
+      reasoning,
+      easiestAssetReason
+    };
+  };
+
+  const projections = getProjections();
+
+  return (
+    <div id="profit-goal-section" className="bg-[#181a20] rounded-2xl border border-gray-800 p-6 space-y-5">
+      
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-gray-800 pb-3">
+        <div className="flex items-center gap-2">
+          <Target className="w-5 h-5 text-[#f0b90b]" />
+          <h3 className="text-lg font-bold text-white font-sans">Simulador de Meta de Lucro</h3>
+        </div>
+        
+        <button
+          id="toggle-explanation-btn"
+          onClick={() => setShowExplanation(!showExplanation)}
+          className="text-xs text-gray-400 hover:text-white flex items-center gap-1 bg-gray-900/40 px-2 py-1 rounded border border-gray-800/80 cursor-pointer"
+        >
+          <HelpCircle className="w-3.5 h-3.5" /> Como funciona?
+        </button>
+      </div>
+
+      {showExplanation && (
+        <div className="text-xs text-gray-300 bg-gray-950/40 p-4 rounded-xl border border-gray-800 leading-relaxed space-y-1.5 animate-in fade-in duration-200">
+          <p className="font-semibold text-[#f0b90b]">Como o cálculo é feito?</p>
+          <p>
+            Analisamos o preço de compra das suas moedas cadastradas comparando com o preço em tempo real da Binance.
+            Usando a velocidade média de oscilação do mercado para cada tipo de ativo (ex: Bitcoin move-se mais devagar, moedas meme de altíssimo risco movem-se mais rápido), calculamos o tempo estimado para bater a meta.
+          </p>
+        </div>
+      )}
+
+      {/* Main Goal Selector Row */}
+      <div className="bg-[#1e2026] rounded-xl border border-gray-800 p-5 space-y-4">
+        
+        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+          <div>
+            <span className="text-xs text-gray-400 font-semibold uppercase tracking-wider block">Meta de Lucro Desejada</span>
+            <span className="text-sm text-gray-500">Configure quanto lucro você almeja por operação</span>
+          </div>
+
+          {/* Quick preset buttons & custom setting */}
+          <div className="flex flex-wrap gap-2">
+            {[2, 5, 10, 15, 20].map((preset) => (
+              <button
+                id={`preset-${preset}-btn`}
+                key={preset}
+                onClick={() => setGoalPercent(preset)}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all border cursor-pointer ${goalPercent === preset ? 'bg-[#f0b90b] text-black border-[#f0b90b]' : 'bg-[#2b2f36] text-gray-300 border-gray-800 hover:text-white'}`}
+              >
+                +{preset}%
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Custom Input Slider */}
+        <div className="space-y-2 pt-2">
+          <div className="flex justify-between items-center text-xs font-mono">
+            <span className="text-gray-400">Arraste para ajustar livremente:</span>
+            <span id="current-goal-display" className="text-[#f0b90b] font-bold text-sm bg-[#f0b90b]/10 px-2 py-0.5 rounded">
+              +{goalPercent}% de Lucro Esperado
+            </span>
+          </div>
+          <input
+            id="goal-percent-slider"
+            type="range"
+            min="1"
+            max="50"
+            step="1"
+            value={goalPercent}
+            onChange={(e) => setGoalPercent(Number(e.target.value))}
+            className="w-full accent-[#f0b90b] bg-gray-800 h-2 rounded-lg appearance-none cursor-pointer"
+          />
+        </div>
+
+      </div>
+
+      {/* Projection Results */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        
+        {/* Left Card: Estimate for Current Portfolio */}
+        <div className="bg-[#1e2026] border border-gray-800 rounded-xl p-4 flex flex-col justify-between">
+          <div>
+            <span className="text-[10px] text-gray-500 font-bold block uppercase tracking-wider mb-2">Tempo Estimado (Carteira Atual)</span>
+            <div className="flex items-baseline gap-1.5 mb-2">
+              <span id="estimated-time-display" className="text-2xl font-extrabold font-mono text-white">
+                {projections.hasHoldings 
+                  ? (projections.estimatedHours === 0 ? "BATEU ALVO!" : `${projections.estimatedHours}h`)
+                  : "Sem ativos"
+                }
+              </span>
+              {projections.hasHoldings && projections.estimatedHours > 0 && (
+                <span className="text-xs text-gray-400 font-sans flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5 text-[#f0b90b]" /> estimativa
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-gray-300 leading-relaxed bg-[#0b0e11]/55 p-3 rounded-lg border border-gray-900 italic">
+              "{projections.reasoning}"
+            </p>
+          </div>
+        </div>
+
+        {/* Right Card: Easiest Recommended Asset to Hit Goal */}
+        <div className="bg-[#1e2026] border border-gray-800 rounded-xl p-4 flex flex-col justify-between">
+          <div>
+            <span className="text-[10px] text-gray-500 font-bold block uppercase tracking-wider mb-2">Moeda Mais Fácil de Bater a Meta</span>
+            <div className="flex items-baseline gap-1.5 mb-2">
+              <span id="easiest-asset-display" className="text-lg font-bold text-[#0ecb81] font-sans flex items-center gap-1.5">
+                <TrendingUp className="w-4 h-4 shrink-0 text-[#0ecb81]" />
+                {projections.easiestAssetToGoal}
+              </span>
+            </div>
+            <p className="text-xs text-gray-300 leading-relaxed bg-[#0b0e11]/55 p-3 rounded-lg border border-gray-900 italic">
+              "{projections.hasHoldings ? projections.easiestAssetReason : "Cadastre ou analise o mercado para ver qual cripto é o melhor caminho rápido para bater este lucro!"}"
+            </p>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  );
+}

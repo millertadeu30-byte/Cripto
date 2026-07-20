@@ -1,0 +1,6 @@
+{
+  "name": "Binance Crypto Assistant",
+  "description": "Um assistente inteligente que analisa criptomoedas na Binance em tempo real, fornecendo sinais de compra/venda, projeções de lucro e reavaliações automatizadas de carteira de 30 em 30 minutos.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
