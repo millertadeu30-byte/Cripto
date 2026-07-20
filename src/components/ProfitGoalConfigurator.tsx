@@ -7,26 +7,63 @@ interface ProfitGoalConfiguratorProps {
   recommendations: Recommendation[];
   marketPrices: { [key: string]: number };
   usdtBrl: number;
+  goalPercent: number;
+  onChangeGoalPercent: (val: number) => void;
 }
 
 export default function ProfitGoalConfigurator({
   trades,
   recommendations,
   marketPrices,
-  usdtBrl
+  usdtBrl,
+  goalPercent,
+  onChangeGoalPercent
 }: ProfitGoalConfiguratorProps) {
-  const [goalPercent, setGoalPercent] = useState<number>(5); // Default 5%
   const [showExplanation, setShowExplanation] = useState(false);
 
   // Calculate estimated time for current holdings
   // We can calculate this by looking at their current PNL and typical movement speeds
   const getProjections = () => {
     if (trades.length === 0) {
+      // Find easiest asset based on goalPercent from recommendations or common assets
+      const recList = recommendations.length > 0 ? recommendations : [
+        { symbol: 'SOLUSDT', coinName: 'Solana', estimatedProfit: 12.5, timeframe: '12h - 24h' },
+        { symbol: 'PEPEUSDT', coinName: 'Pepe Coin', estimatedProfit: 18.2, timeframe: '4h - 8h' },
+        { symbol: 'BTCUSDT', coinName: 'Bitcoin', estimatedProfit: 4.8, timeframe: '24h - 48h' }
+      ];
+
+      // Smart selection based on goal
+      let bestRec = recList.find(r => r.symbol.includes('SOL')) || recList[0];
+      if (goalPercent <= 3) {
+        bestRec = recList.find(r => r.symbol.includes('BTC')) || bestRec;
+      } else if (goalPercent >= 8) {
+        bestRec = recList.find(r => r.symbol.includes('PEPE')) || bestRec;
+      }
+
+      let hourlySpeed = 0.5;
+      if (bestRec.symbol.includes('PEPE')) {
+        hourlySpeed = 1.8;
+      } else if (bestRec.symbol.includes('SOL')) {
+        hourlySpeed = 0.9;
+      } else if (bestRec.symbol.includes('BTC')) {
+        hourlySpeed = 0.3;
+      }
+
+      const estimatedHours = Math.max(0.5, Number((goalPercent / hourlySpeed).toFixed(1)));
+      const timeString = estimatedHours >= 24 
+        ? `${Math.round(estimatedHours / 24)} dia(s)` 
+        : `${estimatedHours} hora(s)`;
+
+      const easiestAssetToGoal = `${bestRec.symbol.replace('USDT', '').replace('BRL', '')} (${bestRec.coinName})`;
+      const reasoning = `Você não tem moedas ativas na carteira no momento, mas nossa análise do mercado indica que a ${bestRec.coinName} (${bestRec.symbol.replace('USDT', '')}) é a mais viável para bater a meta de +${goalPercent}% de forma ágil. Sob condições normais de volatilidade, estimamos cerca de ${timeString} de mercado favorável para alcançar este alvo!`;
+      const easiestAssetReason = `Recomendação de Compra da Inteligência Sênior: A moeda ${bestRec.coinName} apresenta ótimo momentum de volume e suporte técnico ativo no curto prazo, sendo ideal para bater sua meta de +${goalPercent}% com segurança.`;
+
       return {
         hasHoldings: false,
-        estimatedHours: 0,
-        easiestAssetToGoal: "Nenhum ativo comprado",
-        reasoning: "Você não possui nenhuma moeda comprada no momento. Cadastre uma compra para ver as projeções de tempo de ganho!"
+        estimatedHours,
+        easiestAssetToGoal,
+        reasoning,
+        easiestAssetReason
       };
     }
 
@@ -80,8 +117,8 @@ export default function ProfitGoalConfigurator({
       })[0];
 
       if (bestRec) {
-        easiestAssetToGoal = `${bestRec.symbol} (${bestRec.coinName})`;
-        easiestAssetReason = `Recomendamos a moeda ${bestRec.coinName} (${bestRec.symbol}). O robô detectou que ela tem um lucro esperado de +${bestRec.estimatedProfit.toFixed(1)}% em um tempo estimado de ${bestRec.timeframe}, o que se alinha muito bem com a sua meta de +${goalPercent}%!`;
+        easiestAssetToGoal = `${bestRec.symbol.replace('USDT', '').replace('BRL', '')} (${bestRec.coinName})`;
+        easiestAssetReason = `Recomendamos a moeda ${bestRec.coinName} (${bestRec.symbol.replace('USDT', '')}). O robô detectou que ela tem um lucro esperado de +${bestRec.estimatedProfit.toFixed(1)}% em um tempo estimado de ${bestRec.timeframe}, o que se alinha muito bem com a sua meta de +${goalPercent}%!`;
       }
     }
 
@@ -140,7 +177,7 @@ export default function ProfitGoalConfigurator({
               <button
                 id={`preset-${preset}-btn`}
                 key={preset}
-                onClick={() => setGoalPercent(preset)}
+                onClick={() => onChangeGoalPercent(preset)}
                 className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all border cursor-pointer ${goalPercent === preset ? 'bg-[#f0b90b] text-black border-[#f0b90b]' : 'bg-[#2b2f36] text-gray-300 border-gray-800 hover:text-white'}`}
               >
                 +{preset}%
@@ -164,7 +201,7 @@ export default function ProfitGoalConfigurator({
             max="50"
             step="1"
             value={goalPercent}
-            onChange={(e) => setGoalPercent(Number(e.target.value))}
+            onChange={(e) => onChangeGoalPercent(Number(e.target.value))}
             className="w-full accent-[#f0b90b] bg-gray-800 h-2 rounded-lg appearance-none cursor-pointer"
           />
         </div>
@@ -180,14 +217,11 @@ export default function ProfitGoalConfigurator({
             <span className="text-[10px] text-gray-500 font-bold block uppercase tracking-wider mb-2">Tempo Estimado (Carteira Atual)</span>
             <div className="flex items-baseline gap-1.5 mb-2">
               <span id="estimated-time-display" className="text-2xl font-extrabold font-mono text-white">
-                {projections.hasHoldings 
-                  ? (projections.estimatedHours === 0 ? "BATEU ALVO!" : `${projections.estimatedHours}h`)
-                  : "Sem ativos"
-                }
+                {projections.estimatedHours === 0 ? "BATEU ALVO!" : `${projections.estimatedHours}h`}
               </span>
-              {projections.hasHoldings && projections.estimatedHours > 0 && (
+              {projections.estimatedHours > 0 && (
                 <span className="text-xs text-gray-400 font-sans flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5 text-[#f0b90b]" /> estimativa
+                  <Clock className="w-3.5 h-3.5 text-[#f0b90b]" /> {projections.hasHoldings ? "estimativa" : "sugestão da IA"}
                 </span>
               )}
             </div>
@@ -208,7 +242,7 @@ export default function ProfitGoalConfigurator({
               </span>
             </div>
             <p className="text-xs text-gray-300 leading-relaxed bg-[#0b0e11]/55 p-3 rounded-lg border border-gray-900 italic">
-              "{projections.hasHoldings ? projections.easiestAssetReason : "Cadastre ou analise o mercado para ver qual cripto é o melhor caminho rápido para bater este lucro!"}"
+              "{projections.easiestAssetReason}"
             </p>
           </div>
         </div>

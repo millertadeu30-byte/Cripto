@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Eye, EyeOff, PlusCircle, RefreshCw, AlertCircle, BookOpen, TrendingUp, HelpCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Eye, EyeOff, PlusCircle, RefreshCw, AlertCircle, BookOpen, TrendingUp, HelpCircle, Pencil, Check, X } from 'lucide-react';
 import { Trade } from '../types';
 
 interface HeaderProps {
@@ -11,6 +11,11 @@ interface HeaderProps {
   onGuideClick: () => void;
   isAnalyzing: boolean;
   lastAnalysisTime: Date | null;
+  displayCurrency: 'BRL' | 'USDT' | 'BTC';
+  onChangeDisplayCurrency: (val: 'BRL' | 'USDT' | 'BTC') => void;
+  cashBalance: number;
+  cashBalanceCurrency: 'BRL' | 'USDT';
+  onUpdateCashBalance?: (amount: number, currency: 'BRL' | 'USDT') => void;
 }
 
 export default function Header({
@@ -21,36 +26,87 @@ export default function Header({
   onReanalyzeClick,
   onGuideClick,
   isAnalyzing,
-  lastAnalysisTime
+  lastAnalysisTime,
+  displayCurrency,
+  onChangeDisplayCurrency,
+  cashBalance,
+  cashBalanceCurrency,
+  onUpdateCashBalance
 }: HeaderProps) {
   const [hideBalances, setHideBalances] = useState(false);
   const [activeTab, setActiveTab] = useState<'geral' | 'spot' | 'alpha' | 'fundos'>('spot');
+  const [showCurrencyDropdown, setShowCurrencyDropdown] = useState(false);
+
+  // Cash balance inline editor states
+  const [isEditingCash, setIsEditingCash] = useState(false);
+  const [editCashVal, setEditCashVal] = useState(cashBalance.toString());
+  const [editCashCurr, setEditCashCurr] = useState<'BRL' | 'USDT'>(cashBalanceCurrency);
+
+  // Sync editor with state updates
+  useEffect(() => {
+    setEditCashVal(cashBalance.toString());
+    setEditCashCurr(cashBalanceCurrency);
+  }, [cashBalance, cashBalanceCurrency]);
+
+  const handleSaveCashEdit = () => {
+    const val = parseFloat(editCashVal) || 0;
+    if (onUpdateCashBalance) {
+      onUpdateCashBalance(val, editCashCurr);
+    }
+    setIsEditingCash(false);
+  };
 
   // Compute total active balance in BRL
   let totalBrl = 0;
   let totalInvestmentBrl = 0;
 
+  // 1. Add crypto holdings
   trades.forEach(trade => {
-    // Get live price in USDT or default to purchasePrice if not loaded yet
-    const livePriceUsd = marketPrices[trade.symbol] || trade.purchasePrice;
+    // Determine the live price of the coin in BRL
+    let livePriceBrl = 0;
+    const rate = usdtBrl || 5.62;
     
-    // Calculate current value in its respective currency
-    const currentValue = livePriceUsd * trade.amount;
-    const purchaseValue = trade.purchasePrice * trade.amount;
-
+    // Get raw live price (it is in BRL for BRL coins, USDT for USDT coins)
+    const rawLivePrice = marketPrices[trade.symbol] || trade.currentPrice;
+    
     if (trade.currency === 'BRL') {
-      totalBrl += currentValue;
-      totalInvestmentBrl += purchaseValue;
+      livePriceBrl = rawLivePrice;
     } else {
-      // Convert USD/USDT to BRL
-      totalBrl += currentValue * usdtBrl;
-      totalInvestmentBrl += purchaseValue * usdtBrl;
+      livePriceBrl = rawLivePrice * rate;
     }
+
+    // Now calculate the current value in BRL
+    const currentValueBrl = livePriceBrl * trade.amount;
+    
+    // Calculate purchase value in BRL using our precise purchasePriceInBrl
+    const purchaseValueBrl = (trade.purchasePriceInBrl || (trade.currency === 'BRL' ? trade.purchasePrice : trade.purchasePrice * rate)) * trade.amount;
+
+    totalBrl += currentValueBrl;
+    totalInvestmentBrl += purchaseValueBrl;
   });
+
+  // 2. Add available cash/wallet balance
+  const rate = usdtBrl || 5.62;
+  const cashBalanceBrl = cashBalanceCurrency === 'BRL' ? cashBalance : cashBalance * rate;
+  
+  // Save crypto-only BRL total for breakdown
+  const cryptoOnlyBrl = totalBrl;
+
+  // Add cash to both current and investment totals (cash has 1:1 worth, PNL is 0)
+  totalBrl += cashBalanceBrl;
+  totalInvestmentBrl += cashBalanceBrl;
 
   // Calculate current PNL
   const pnlBrl = totalBrl - totalInvestmentBrl;
-  const pnlPercent = totalInvestmentBrl > 0 ? (pnlBrl / totalInvestmentBrl) * 100 : 0;
+  // Calculate non-diluted crypto investment to represent actual asset variation
+  const cryptoInvestmentBrl = totalInvestmentBrl - cashBalanceBrl;
+  const pnlPercent = cryptoInvestmentBrl > 0 ? (pnlBrl / cryptoInvestmentBrl) * 100 : 0;
+
+  // Real-time currency conversions for the header summary
+  const btcUsdtPrice = marketPrices['BTCUSDT'] || 91520.40;
+  const btcBrlPrice = btcUsdtPrice * (usdtBrl || 5.62);
+  const totalUsdt = totalBrl / (usdtBrl || 5.62);
+  const totalBtc = totalBrl / btcBrlPrice;
 
   return (
     <header id="app-header" className="bg-[#181a20] border-b border-gray-800 text-[#eaecef] font-sans">
@@ -135,7 +191,7 @@ export default function Header({
         
         {/* Balance Section */}
         <div className="space-y-1 animate-in fade-in slide-in-from-left-5 duration-300">
-          <div className="flex items-center gap-2 text-xs text-gray-400">
+          <div className="flex items-center gap-3 text-xs text-gray-400">
             <span>Valor total estimado</span>
             <button 
               id="hide-balance-toggle"
@@ -145,30 +201,202 @@ export default function Header({
             >
               {hideBalances ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </button>
+            {isAnalyzing && (
+              <span className="text-[10px] text-[#f0b90b] animate-pulse flex items-center gap-1.5 bg-[#f0b90b]/10 px-2 py-0.5 rounded-full border border-[#f0b90b]/20">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#f0b90b] animate-ping"></span>
+                Atualizando cotações...
+              </span>
+            )}
           </div>
 
-          <div className="flex items-baseline gap-2">
-            <span id="estimated-balance-value" className="text-3xl font-extrabold text-white font-sans tracking-tight">
-              {hideBalances ? "••••••" : `R$ ${totalBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-            </span>
-            <span className="text-xs text-gray-400 font-mono">BRL</span>
+          <div className="flex flex-col relative">
+            <div className="flex items-baseline gap-2 relative">
+              <span id="estimated-balance-value" className={`text-3xl font-extrabold text-white font-sans tracking-tight transition-all ${isAnalyzing ? 'opacity-70 animate-pulse' : ''}`}>
+                {hideBalances ? "••••••••" : (
+                  displayCurrency === 'BTC' 
+                    ? totalBtc.toLocaleString('pt-BR', { minimumFractionDigits: 8, maximumFractionDigits: 8 }) 
+                    : displayCurrency === 'USDT' 
+                      ? totalUsdt.toLocaleString('pt-BR', { minimumFractionDigits: 4, maximumFractionDigits: 8 }) 
+                      : `R$ ${totalBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                )}
+              </span>
+              
+              {/* Dropdown Selector for Display Currency */}
+              <div className="relative inline-block text-left">
+                <button
+                  type="button"
+                  id="display-currency-selector"
+                  onClick={() => setShowCurrencyDropdown(!showCurrencyDropdown)}
+                  className="flex items-center gap-1 text-[10px] text-gray-300 font-bold hover:text-white bg-gray-800/60 px-2 py-0.5 rounded border border-gray-700/60 cursor-pointer transition-colors uppercase font-sans"
+                >
+                  <span>{displayCurrency}</span>
+                  <span className="text-[8px]">▼</span>
+                </button>
+                
+                {showCurrencyDropdown && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-10" 
+                      onClick={() => setShowCurrencyDropdown(false)} 
+                    />
+                    <div className="absolute left-0 mt-1 w-24 rounded-md shadow-lg bg-[#1e2026] border border-gray-800 ring-1 ring-black ring-opacity-5 focus:outline-none z-20">
+                      <div className="py-1">
+                        {(['BRL', 'USDT', 'BTC'] as const).map((curr) => (
+                          <button
+                            key={curr}
+                            type="button"
+                            onClick={() => {
+                              onChangeDisplayCurrency(curr);
+                              setShowCurrencyDropdown(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 text-xs font-semibold ${displayCurrency === curr ? 'bg-[#f0b90b] text-black font-bold' : 'text-gray-300 hover:bg-gray-800 hover:text-white'}`}
+                          >
+                            {curr}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Subtext equivalent */}
+            <div className="text-xs text-gray-400 font-medium mt-1">
+              {hideBalances ? "••••" : (
+                displayCurrency === 'BTC' 
+                  ? `≈ ${totalBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} R$` 
+                  : displayCurrency === 'USDT' 
+                    ? `≈ ${totalBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} R$` 
+                    : `≈ ${totalUsdt.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT`
+              )}
+            </div>
+
+            {/* Breakdown of Cripto and Cash */}
+            <div className="flex flex-col gap-1.5 mt-2">
+              <div className="flex items-center gap-3 text-[10px] text-gray-500 font-sans flex-wrap">
+                <div>
+                  <span>Ativos Cripto: </span>
+                  <span className="text-gray-300 font-mono font-bold">
+                    {hideBalances ? "••••" : (
+                      displayCurrency === 'BTC'
+                        ? `${(cryptoOnlyBrl / btcBrlPrice).toFixed(8)} BTC`
+                        : displayCurrency === 'USDT'
+                          ? `$ ${(cryptoOnlyBrl / (usdtBrl || 5.62)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`
+                          : `R$ ${cryptoOnlyBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                    )}
+                  </span>
+                </div>
+                
+                <div className="border-l border-gray-800 h-3 self-center hidden sm:block" />
+                
+                <div className="flex items-center gap-1.5">
+                  <span>Saldo em Caixa: </span>
+                  {isEditingCash ? (
+                    <div className="flex items-center gap-1 bg-[#1e2026] border border-[#f0b90b]/40 rounded px-1.5 py-0.5 animate-in fade-in zoom-in-95 duration-150">
+                      <input 
+                        id="inline-cash-input"
+                        type="number"
+                        step="any"
+                        className="w-16 bg-transparent text-white font-mono font-bold text-xs focus:outline-none"
+                        value={editCashVal}
+                        onChange={(e) => setEditCashVal(e.target.value)}
+                        autoFocus
+                      />
+                      <select 
+                        id="inline-cash-currency"
+                        className="bg-transparent text-[#f0b90b] font-bold text-[10px] focus:outline-none cursor-pointer pr-1"
+                        value={editCashCurr}
+                        onChange={(e) => setEditCashCurr(e.target.value as 'BRL' | 'USDT')}
+                      >
+                        <option value="BRL" className="bg-[#181a20] text-white">BRL</option>
+                        <option value="USDT" className="bg-[#181a20] text-white">USDT</option>
+                      </select>
+                      <button 
+                        id="inline-cash-confirm-btn"
+                        onClick={handleSaveCashEdit}
+                        className="p-0.5 hover:bg-gray-800 rounded text-[#0ecb81]"
+                        title="Confirmar alteração"
+                      >
+                        <Check className="w-3 h-3" />
+                      </button>
+                      <button 
+                        id="inline-cash-cancel-btn"
+                        onClick={() => setIsEditingCash(false)}
+                        className="p-0.5 hover:bg-gray-800 rounded text-[#f6465d]"
+                        title="Cancelar"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1">
+                      <span className="text-gray-300 font-mono font-bold">
+                        {hideBalances ? "••••" : (
+                          displayCurrency === 'BTC'
+                            ? `${(cashBalanceBrl / btcBrlPrice).toFixed(8)} BTC`
+                            : displayCurrency === 'USDT'
+                              ? `$ ${(cashBalanceBrl / (usdtBrl || 5.62)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`
+                              : `R$ ${cashBalanceBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                        )}
+                      </span>
+                      {!hideBalances && (
+                        <button 
+                          id="edit-cash-trigger-btn"
+                          onClick={() => {
+                            setEditCashVal(cashBalance.toString());
+                            setEditCashCurr(cashBalanceCurrency);
+                            setIsEditingCash(true);
+                          }}
+                          className="p-0.5 hover:bg-gray-800 rounded transition-colors"
+                          title="Ajustar dinheiro em caixa"
+                        >
+                          <Pencil className="w-3 h-3 text-[#f0b90b]" />
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Explanatory helpful tip to avoid double counting confusion */}
+              {!hideBalances && (
+                <div className="text-[9px] text-gray-400/70 font-sans mt-1 max-w-md leading-relaxed flex items-start gap-1 bg-[#1e2026]/40 p-2 rounded-lg border border-gray-800/60">
+                  <AlertCircle className="w-3 h-3 text-[#f0b90b] shrink-0 mt-0.5" />
+                  <span>
+                    O <strong>Valor total estimado</strong> soma os seus ativos de cripto (R$ {cryptoOnlyBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}) com o seu dinheiro em caixa (R$ {cashBalanceBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}). Se você já usou todo o dinheiro para comprar os ativos, edite o Saldo em Caixa para <strong>R$ 0,00</strong> clicando no lápis amarelo ao lado.
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Today's / Total PNL Tracker */}
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-gray-400">PNL Acumulado:</span>
+          <div className="flex items-center gap-2 text-xs flex-wrap mt-2">
+            <span className="text-gray-400 font-medium">PNL de Hoje:</span>
             <span 
               id="pnl-status-display"
-              className={`font-semibold flex items-center gap-0.5 ${pnlBrl >= 0 ? 'text-[#0ecb81]' : 'text-[#f6465d]'}`}
+              className={`font-bold flex items-center gap-0.5 ${pnlBrl > 0 ? 'text-[#0ecb81]' : pnlBrl < 0 ? 'text-[#f6465d]' : 'text-gray-400'}`}
             >
-              {pnlBrl >= 0 ? '+' : ''}
+              {pnlBrl > 0 ? '+' : ''}
               {hideBalances ? "••••" : `R$ ${pnlBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-              <span>({pnlPercent >= 0 ? '+' : ''}{pnlPercent.toFixed(2)}%)</span>
+              <span className="ml-1 font-semibold">({pnlPercent > 0 ? '+' : ''}{pnlPercent.toFixed(2)}%)</span>
             </span>
-            {trades.length > 0 && pnlBrl >= 0 && (
-              <span className="bg-[#0ecb81]/15 text-[#0ecb81] text-[10px] px-1.5 py-0.5 rounded-sm font-bold uppercase tracking-wider">
-                Lucrando 🔥
-              </span>
+            
+            {trades.length > 0 && (
+              pnlBrl > 0 ? (
+                <span className="bg-[#0ecb81]/15 text-[#0ecb81] text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider flex items-center gap-1">
+                  Lucrando 🔥
+                </span>
+              ) : pnlBrl < 0 ? (
+                <span className="bg-[#f6465d]/15 text-[#f6465d] text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider flex items-center gap-1">
+                  Prejuízo 📉
+                </span>
+              ) : (
+                <span className="bg-gray-800 text-gray-400 text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider flex items-center gap-1">
+                  Sem Alteração ⚖️
+                </span>
+              )
             )}
           </div>
         </div>

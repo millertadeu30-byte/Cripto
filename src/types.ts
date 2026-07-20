@@ -15,6 +15,8 @@ export interface Trade {
   symbol: string;
   coinName: string;
   purchasePrice: number;    // Preço que o usuário pagou (em USDT ou BRL)
+  purchasePriceInBrl?: number; // Preço pago convertido para BRL
+  purchasePriceInUsdt?: number; // Preço pago convertido para USDT
   currentPrice: number;     // Preço atual de mercado
   amount: number;           // Quantidade da moeda
   totalInvested: number;    // Preço de compra * Quantidade
@@ -24,6 +26,7 @@ export interface Trade {
   aiReasoning?: string;
   aiTargetPrice?: number;
   aiStopLossPrice?: number;
+  isManualPrice?: boolean;  // Se true, o preço atual foi fixado manualmente e não será sobrescrito pela API
 }
 
 export interface MarketPrice {

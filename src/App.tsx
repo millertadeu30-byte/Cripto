@@ -88,6 +88,11 @@ export default function App() {
     return saved ? JSON.parse(saved) : INITIAL_TRADES;
   });
 
+  const tradesRef = useRef<Trade[]>(trades);
+  useEffect(() => {
+    tradesRef.current = trades;
+  }, [trades]);
+
   const [recommendations, setRecommendations] = useState<Recommendation[]>(() => {
     const saved = localStorage.getItem('binance_assistant_recommendations');
     return saved ? JSON.parse(saved) : INITIAL_RECOMMENDATIONS;
@@ -103,7 +108,7 @@ export default function App() {
   const [marketPrices, setMarketPrices] = useState<{ [key: string]: number }>({
     'BTCUSDT': 91520.40,
     'ETHUSDT': 2475.20,
-    'SOLUSDT': 184.85,
+    'SOLUSDT': 76.85,
     'BNBUSDT': 592.10,
     'XRPUSDT': 2.45,
     'ADAUSDT': 0.84,
@@ -116,17 +121,109 @@ export default function App() {
     'TOWNSBRL': 0.011765 // Initial fallback
   });
 
-  const [usdtBrl, setUsdtBrl] = useState<number>(5.62);
+  const [usdtBrl, setUsdtBrl] = useState<number>(5.15);
   const [countdown, setCountdown] = useState<number>(1800); // 30 minutes countdown
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [lastAnalysisTime, setLastAnalysisTime] = useState<Date | null>(new Date());
   
+  // Lifted Goal Percent state for global simulator synchronization
+  const [goalPercent, setGoalPercent] = useState<number>(() => {
+    const saved = localStorage.getItem('binance_assistant_goal_percent');
+    return saved ? Number(saved) : 5; // default 5%
+  });
+
+  const handleGoalPercentChange = (val: number) => {
+    setGoalPercent(val);
+    localStorage.setItem('binance_assistant_goal_percent', String(val));
+  };
+
+  // Global wallet cash balance state synchronized with Header and AddTradeModal
+  const [cashBalance, setCashBalance] = useState<number>(() => {
+    const saved = localStorage.getItem('current_wallet_balance');
+    return saved ? parseFloat(saved) : 1000;
+  });
+
+  const [cashBalanceCurrency, setCashBalanceCurrency] = useState<'BRL' | 'USDT'>(() => {
+    const saved = localStorage.getItem('current_wallet_balance_currency');
+    return (saved === 'USDT' || saved === 'BRL') ? saved : 'BRL';
+  });
+
+  const handleUpdateCashBalance = (amount: number, currency: 'BRL' | 'USDT') => {
+    setCashBalance(amount);
+    setCashBalanceCurrency(currency);
+    localStorage.setItem('current_wallet_balance', amount.toFixed(4));
+    localStorage.setItem('current_wallet_balance_currency', currency);
+  };
+  
+  // Global display currency for synchronization across Header and PortfolioList
+  const [displayCurrency, setDisplayCurrency] = useState<'BRL' | 'USDT' | 'BTC'>(() => {
+    const saved = localStorage.getItem('binance_assistant_display_currency');
+    return (saved as 'BRL' | 'USDT' | 'BTC') || 'BRL';
+  });
+
+  const handleDisplayCurrencyChange = (val: 'BRL' | 'USDT' | 'BTC') => {
+    setDisplayCurrency(val);
+    localStorage.setItem('binance_assistant_display_currency', val);
+  };
+  
   // Modals / Guides open states
-  const [showGuide, setShowGuide] = useState<boolean>(true); // Show guide by default for the first visit
+  const [showGuide, setShowGuide] = useState<boolean>(false); // Start closed as requested
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
   const [prefilledTrade, setPrefilledTrade] = useState<any>(null);
   const [showHistory, setShowHistory] = useState<boolean>(false);
   const [confirmingDeleteHistoryIndex, setConfirmingDeleteHistoryIndex] = useState<number | null>(null);
+
+  // Auto-heal existing trades with mismatched symbols and currencies on startup
+  useEffect(() => {
+    if (trades.length > 0) {
+      let changed = false;
+      const healedTrades = trades.map(trade => {
+        let updatedTrade = { ...trade };
+        
+        // 1. Symbol/currency alignment heal
+        const baseSymbol = updatedTrade.symbol.replace(/USDT$/, '').replace(/BRL$/, '');
+        const expectedSymbol = baseSymbol + updatedTrade.currency;
+        if (updatedTrade.symbol !== expectedSymbol) {
+          changed = true;
+          updatedTrade.symbol = expectedSymbol;
+          updatedTrade.currentPrice = marketPrices[expectedSymbol] || updatedTrade.currentPrice;
+        }
+
+        // 2. Initialize purchasePriceInBrl and purchasePriceInUsdt if missing,
+        // and auto-detect if user entered a BRL price for a USDT trade (e.g. entered 1038.85 for SOLUSDT)
+        if (updatedTrade.purchasePriceInBrl === undefined || updatedTrade.purchasePriceInUsdt === undefined) {
+          changed = true;
+          const rate = usdtBrl || 5.62;
+          
+          if (updatedTrade.currency === 'USDT') {
+            const livePriceEstimate = marketPrices[updatedTrade.symbol] || updatedTrade.currentPrice || 100;
+            // If the entered purchasePrice is way higher than the live USDT price (e.g. > 3 * livePriceEstimate)
+            if (updatedTrade.purchasePrice / livePriceEstimate > 3) {
+              // User entered price in BRL for a USDT trade!
+              updatedTrade.purchasePriceInBrl = updatedTrade.purchasePrice;
+              updatedTrade.purchasePriceInUsdt = updatedTrade.purchasePrice / rate;
+              // Normalize the main purchasePrice to be in USDT to match the trade's currency!
+              updatedTrade.purchasePrice = updatedTrade.purchasePriceInUsdt;
+            } else {
+              // Normal USDT purchase price
+              updatedTrade.purchasePriceInUsdt = updatedTrade.purchasePrice;
+              updatedTrade.purchasePriceInBrl = updatedTrade.purchasePrice * rate;
+            }
+          } else {
+            // currency === 'BRL'
+            updatedTrade.purchasePriceInBrl = updatedTrade.purchasePrice;
+            updatedTrade.purchasePriceInUsdt = updatedTrade.purchasePrice / rate;
+          }
+        }
+        
+        return updatedTrade;
+      });
+      if (changed) {
+        setTrades(healedTrades);
+        pushLog('🔧 Auto-correção: Alinhamento de moedas e preços corrigido com sucesso!');
+      }
+    }
+  }, [trades.length, marketPrices, usdtBrl]);
 
   // Sync state with localStorage (as instant offline backup)
   useEffect(() => {
@@ -197,7 +294,9 @@ export default function App() {
   // Fetch real-time market prices & USDTBRL rate every 30 seconds
   const fetchMarketPrices = async () => {
     try {
-      const res = await fetch('/api/prices');
+      const activeTrades = tradesRef.current;
+      const extra = activeTrades.map(t => t.symbol).join(',');
+      const res = await fetch(`/api/prices?extra=${extra}`);
       if (res.ok) {
         const data = await res.json();
         setUsdtBrl(data.usdtBrl);
@@ -209,7 +308,7 @@ export default function App() {
         });
 
         // Set BRL counterparts dynamically if they exist or synthesize
-        trades.forEach(trade => {
+        activeTrades.forEach(trade => {
           if (trade.currency === 'BRL') {
             // If it's BRL denom like TOWNSBRL, and we don't have direct ticker, synthesize via USDTBRL
             const usdSymbol = trade.symbol.replace('BRL', 'USDT');
@@ -227,6 +326,7 @@ export default function App() {
         // Update current prices directly on active trades list for local responsiveness
         setTrades(prevTrades => 
           prevTrades.map(trade => {
+            if (trade.isManualPrice) return trade;
             const freshPrice = prices[trade.symbol] || trade.currentPrice;
             return {
               ...trade,
@@ -244,7 +344,7 @@ export default function App() {
     fetchMarketPrices();
     const interval = setInterval(fetchMarketPrices, 30000); // 30 seconds
     return () => clearInterval(interval);
-  }, [trades.length]);
+  }, []);
 
   // 30-Minute countdown timer tick
   useEffect(() => {
@@ -259,7 +359,7 @@ export default function App() {
       });
     }, 1000);
     return () => clearInterval(timer);
-  }, [trades]);
+  }, []);
 
   // Push beautiful activities to log
   const pushLog = (message: string) => {
@@ -271,13 +371,17 @@ export default function App() {
   const triggerMarketAnalysis = async () => {
     setIsAnalyzing(true);
     pushLog('🔄 Iniciando varredura geral na API pública da Binance...');
-    pushLog('🤖 Conectando com a Inteligência Sênior Gemini para reanálise profunda...');
     
     try {
+      // Fetch latest market prices first to synchronize live metrics immediately on user tap or 30m window
+      await fetchMarketPrices();
+      pushLog('🤖 Conectando com a Inteligência Sênior Gemini para reanálise profunda...');
+      
+      const activeTrades = tradesRef.current;
       const response = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ trades })
+        body: JSON.stringify({ trades: activeTrades })
       });
 
       if (!response.ok) throw new Error('Falha na resposta do servidor AI.');
@@ -329,9 +433,15 @@ export default function App() {
 
   // Add new trade manually
   const handleSaveTrade = (newTradeData: Omit<Trade, 'id' | 'pnlValue' | 'pnlPercent' | 'currentPrice'>) => {
-    const livePrice = marketPrices[newTradeData.symbol] || newTradeData.purchasePrice;
+    // Sanitize symbol to align exactly with selected currency
+    let cleanSymbol = newTradeData.symbol;
+    const base = cleanSymbol.replace(/USDT$/, '').replace(/BRL$/, '');
+    cleanSymbol = base + newTradeData.currency;
+
+    const livePrice = marketPrices[cleanSymbol] || newTradeData.purchasePrice;
     const newTrade: Trade = {
       ...newTradeData,
+      symbol: cleanSymbol,
       id: `trade-${Date.now()}`,
       currentPrice: livePrice
     };
@@ -339,6 +449,15 @@ export default function App() {
     setTrades(prev => [newTrade, ...prev]);
     pushLog(`📥 Operação registrada: Comprou ${newTrade.amount.toLocaleString()} ${newTrade.symbol} a ${newTrade.currency} ${newTrade.purchasePrice}.`);
     
+    // Deduct totalInvested from cashBalance
+    const rate = usdtBrl || 5.15;
+    let deduction = newTradeData.totalInvested;
+    if (newTradeData.currency !== cashBalanceCurrency) {
+      deduction = cashBalanceCurrency === 'BRL' ? newTradeData.totalInvested * rate : newTradeData.totalInvested / rate;
+    }
+    const newCashBalance = Math.max(0, cashBalance - deduction);
+    handleUpdateCashBalance(newCashBalance, cashBalanceCurrency);
+
     // Auto trigger quick AI analysis of this new coin
     setTimeout(triggerMarketAnalysis, 1000);
   };
@@ -372,6 +491,15 @@ export default function App() {
 
     const winEmoji = pnlBrl >= 0 ? '🎉 Lucro realizado!' : '📉 Perda cortada.';
     pushLog(`🔥 ${winEmoji} Moeda ${trade.symbol} vendida a ${exitPrice}. Resultado: ${pnlBrl >= 0 ? '+' : ''}R$ ${pnlBrl.toFixed(2)} (${closedRecord.finalPnlPercent.toFixed(2)}%)!`);
+    
+    // Add the exit sold value back to available cash balance
+    const rate = usdtBrl || 5.15;
+    let refund = exitValue;
+    if (trade.currency !== cashBalanceCurrency) {
+      refund = cashBalanceCurrency === 'BRL' ? exitValue * rate : exitValue / rate;
+    }
+    const newCashBalance = cashBalance + refund;
+    handleUpdateCashBalance(newCashBalance, cashBalanceCurrency);
   };
 
   // Simply delete/remove from list
@@ -380,14 +508,40 @@ export default function App() {
     if (!trade) return;
     setTrades(prev => prev.filter(t => t.id !== id));
     pushLog(`🗑️ Operação de ${trade.symbol} removida da lista de acompanhamento.`);
+
+    // Refund the initial purchase totalInvested back to available cash balance
+    const rate = usdtBrl || 5.15;
+    let refund = trade.totalInvested;
+    if (trade.currency !== cashBalanceCurrency) {
+      refund = cashBalanceCurrency === 'BRL' ? trade.totalInvested * rate : trade.totalInvested / rate;
+    }
+    const newCashBalance = cashBalance + refund;
+    handleUpdateCashBalance(newCashBalance, cashBalanceCurrency);
   };
 
   // Edit trade values
   const handleEditTrade = (updatedTrade: Trade) => {
+    const oldTrade = trades.find(t => t.id === updatedTrade.id);
     setTrades(prevTrades => 
       prevTrades.map(t => t.id === updatedTrade.id ? updatedTrade : t)
     );
     pushLog(`✏️ Operação ${updatedTrade.symbol} editada e atualizada!`);
+
+    // Synchronize difference in totalInvested to cashBalance
+    if (oldTrade) {
+      const rate = usdtBrl || 5.15;
+      let oldInvested = oldTrade.totalInvested;
+      if (oldTrade.currency !== cashBalanceCurrency) {
+        oldInvested = cashBalanceCurrency === 'BRL' ? oldTrade.totalInvested * rate : oldTrade.totalInvested / rate;
+      }
+      let newInvested = updatedTrade.totalInvested;
+      if (updatedTrade.currency !== cashBalanceCurrency) {
+        newInvested = cashBalanceCurrency === 'BRL' ? updatedTrade.totalInvested * rate : updatedTrade.totalInvested / rate;
+      }
+      const diff = newInvested - oldInvested;
+      const newCashBalance = Math.max(0, cashBalance - diff);
+      handleUpdateCashBalance(newCashBalance, cashBalanceCurrency);
+    }
   };
 
   // Delete item from sold trades history
@@ -443,6 +597,11 @@ export default function App() {
         onGuideClick={() => setShowGuide(!showGuide)}
         isAnalyzing={isAnalyzing}
         lastAnalysisTime={lastAnalysisTime}
+        displayCurrency={displayCurrency}
+        onChangeDisplayCurrency={handleDisplayCurrencyChange}
+        cashBalance={cashBalance}
+        cashBalanceCurrency={cashBalanceCurrency}
+        onUpdateCashBalance={handleUpdateCashBalance}
       />
 
       {/* Main Body */}
@@ -523,6 +682,8 @@ export default function App() {
               onRemoveTrade={handleRemoveTrade}
               onCloseTrade={handleCloseTrade}
               onEditTrade={handleEditTrade}
+              goalPercent={goalPercent}
+              displayCurrency={displayCurrency}
             />
 
             {/* Simulador de Meta de Lucro Configurada */}
@@ -531,6 +692,8 @@ export default function App() {
               recommendations={recommendations}
               marketPrices={marketPrices}
               usdtBrl={usdtBrl}
+              goalPercent={goalPercent}
+              onChangeGoalPercent={handleGoalPercentChange}
             />
 
             {/* History Section Toggle */}
@@ -645,6 +808,11 @@ export default function App() {
         onClose={() => setIsAddModalOpen(false)}
         onSave={handleSaveTrade}
         prefilledData={prefilledTrade}
+        marketPrices={marketPrices}
+        usdtBrl={usdtBrl}
+        cashBalance={cashBalance}
+        cashBalanceCurrency={cashBalanceCurrency}
+        onUpdateCashBalance={handleUpdateCashBalance}
       />
 
     </div>
