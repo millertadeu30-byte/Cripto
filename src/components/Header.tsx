@@ -274,10 +274,10 @@ export default function Header({
 
             {/* Breakdown of Cripto and Cash */}
             <div className="flex flex-col gap-1.5 mt-2">
-              <div className="flex items-center gap-3 text-[10px] text-gray-500 font-sans flex-wrap">
+              <div className="flex items-center gap-4 text-xs text-gray-400 font-sans flex-wrap">
                 <div>
-                  <span>Ativos Cripto: </span>
-                  <span className="text-gray-300 font-mono font-bold">
+                  <span className="text-gray-500">Ativos Cripto:</span>{' '}
+                  <span className="text-gray-200 font-mono font-bold">
                     {hideBalances ? "••••" : (
                       displayCurrency === 'BTC'
                         ? `${(cryptoOnlyBrl / btcBrlPrice).toFixed(8)} BTC`
@@ -288,10 +288,8 @@ export default function Header({
                   </span>
                 </div>
                 
-                <div className="border-l border-gray-800 h-3 self-center hidden sm:block" />
-                
                 <div className="flex items-center gap-1.5">
-                  <span>Saldo em Caixa: </span>
+                  <span className="text-gray-500">Saldo em Caixa:</span>{' '}
                   {isEditingCash ? (
                     <div className="flex items-center gap-1 bg-[#1e2026] border border-[#f0b90b]/40 rounded px-1.5 py-0.5 animate-in fade-in zoom-in-95 duration-150">
                       <input 
@@ -361,8 +359,8 @@ export default function Header({
 
               {/* Explanatory helpful tip to avoid double counting confusion */}
               {!hideBalances && (
-                <div className="text-[9px] text-gray-400/70 font-sans mt-1 max-w-md leading-relaxed flex items-start gap-1 bg-[#1e2026]/40 p-2 rounded-lg border border-gray-800/60">
-                  <AlertCircle className="w-3 h-3 text-[#f0b90b] shrink-0 mt-0.5" />
+                <div className="text-xs text-gray-400/90 font-sans mt-2.5 max-w-lg leading-relaxed flex items-start gap-2 bg-[#f0b90b]/5 p-3 rounded-lg border border-[#f0b90b]/20">
+                  <AlertCircle className="w-3.5 h-3.5 text-[#f0b90b] shrink-0 mt-0.5" />
                   <span>
                     O <strong>Valor total estimado</strong> soma os seus ativos de cripto (R$ {cryptoOnlyBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}) com o seu dinheiro em caixa (R$ {cashBalanceBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}). Se você já usou todo o dinheiro para comprar os ativos, edite o Saldo em Caixa para <strong>R$ 0,00</strong> clicando no lápis amarelo ao lado.
                   </span>
@@ -372,7 +370,7 @@ export default function Header({
           </div>
 
           {/* Today's / Total PNL Tracker */}
-          <div className="flex items-center gap-2 text-xs flex-wrap mt-2">
+          <div className="flex items-center gap-2 text-xs flex-wrap mt-3 font-sans">
             <span className="text-gray-400 font-medium">PNL de Hoje:</span>
             <span 
               id="pnl-status-display"
@@ -383,49 +381,50 @@ export default function Header({
               <span className="ml-1 font-semibold">({pnlPercent > 0 ? '+' : ''}{pnlPercent.toFixed(2)}%)</span>
             </span>
             
-            {trades.length > 0 && (
-              pnlBrl > 0 ? (
-                <span className="bg-[#0ecb81]/15 text-[#0ecb81] text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider flex items-center gap-1">
-                  Lucrando 🔥
-                </span>
-              ) : pnlBrl < 0 ? (
-                <span className="bg-[#f6465d]/15 text-[#f6465d] text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider flex items-center gap-1">
-                  Prejuízo 📉
-                </span>
-              ) : (
-                <span className="bg-gray-800 text-gray-400 text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider flex items-center gap-1">
-                  Sem Alteração ⚖️
-                </span>
-              )
+            {pnlBrl > 0 ? (
+              <span className="bg-[#0ecb81]/15 text-[#0ecb81] text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider flex items-center gap-1 border border-[#0ecb81]/25">
+                LUCRANDO 🔥
+              </span>
+            ) : pnlBrl < 0 ? (
+              <span className="bg-[#f6465d]/15 text-[#f6465d] text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider flex items-center gap-1 border border-[#f6465d]/25">
+                PREJUÍZO 📉
+              </span>
+            ) : (
+              <span className="bg-[#2d3139]/50 text-gray-400 text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider flex items-center gap-1 border border-gray-700/40">
+                SEM ALTERAÇÃO ⚖️
+              </span>
+            )}
+          </div>
+
+          {/* Real-time Exchange Rate & Last Analysis Info */}
+          <div className="flex items-center gap-6 text-xs text-gray-400 font-sans mt-2.5 flex-wrap">
+            <div>
+              <span className="text-gray-500 font-medium">Taxa Câmbio:</span>{' '}
+              <span className="text-gray-200 font-mono font-bold">1 USDT = R$ {usdtBrl.toFixed(2)}</span>
+            </div>
+            {lastAnalysisTime && (
+              <div>
+                <span className="text-gray-500 font-medium">Última Análise:</span>{' '}
+                <span className="text-gray-200 font-mono font-bold">{lastAnalysisTime.toLocaleTimeString('pt-BR')}</span>
+              </div>
             )}
           </div>
         </div>
 
         {/* Real-time Status / Re-evaluation trigger */}
-        <div className="flex flex-col md:items-end gap-3">
-          <div className="flex items-center gap-4 text-xs text-gray-400 font-mono">
-            <div>
-              <span className="text-gray-500">Taxa Câmbio:</span> <span className="text-white">1 USDT = R$ {usdtBrl.toFixed(2)}</span>
-            </div>
-            {lastAnalysisTime && (
-              <div>
-                <span className="text-gray-500">Última Análise:</span> <span className="text-white">{lastAnalysisTime.toLocaleTimeString('pt-BR')}</span>
-              </div>
-            )}
-          </div>
-
+        <div className="flex flex-col md:items-end gap-2 self-end">
           <button
             id="reanalyze-now-btn"
             onClick={onReanalyzeClick}
             disabled={isAnalyzing}
-            className={`bg-[#f0b90b] hover:bg-[#d4a30a] text-black rounded-xl px-5 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-[#f0b90b]/10 cursor-pointer ${isAnalyzing ? 'opacity-50 cursor-not-allowed animate-pulse' : 'animate-pulse-subtle'}`}
+            className={`w-full md:w-auto bg-[#f0b90b] hover:bg-[#d4a30a] text-black rounded-xl px-5 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-[#f0b90b]/10 cursor-pointer ${isAnalyzing ? 'opacity-50 cursor-not-allowed animate-pulse' : 'animate-pulse-subtle'}`}
           >
             <RefreshCw className={`w-4 h-4 text-black ${isAnalyzing ? 'animate-spin' : ''}`} />
             {isAnalyzing ? "Estudando Mercado com IA..." : "🤖 Analisar Agora & Atualizar Sinais"}
           </button>
           
-          <div className="text-[10px] text-gray-500 flex items-center gap-1">
-            <AlertCircle className="w-3 h-3 text-[#f0b90b]" />
+          <div className="text-[10px] text-gray-500 flex items-center gap-1.5 justify-center md:justify-end mt-1.5">
+            <AlertCircle className="w-3.5 h-3.5 text-[#f0b90b] shrink-0" />
             <span>Dados de preços reais importados via API Pública da Binance.</span>
           </div>
         </div>
