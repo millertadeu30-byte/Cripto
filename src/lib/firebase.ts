@@ -8,14 +8,16 @@ export const db = getFirestore(app);
 
 // Retrieve or generate a unique Device/Sync ID to identify this user's data in the cloud
 export function getDeviceSyncId(): string {
-  let syncId = localStorage.getItem('binance_assistant_sync_id');
-  if (!syncId) {
-    // Generate a unique, short, human-readable-ish sync code
-    const randPart = Math.random().toString(36).substring(2, 8).toUpperCase();
-    syncId = `BIA-${Date.now().toString().slice(-6)}-${randPart}`;
-    localStorage.setItem('binance_assistant_sync_id', syncId);
+  try {
+    let syncId = localStorage.getItem('binance_assistant_sync_id');
+    if (!syncId) {
+      syncId = 'BIA-PORTFOLIO-MASTER';
+      localStorage.setItem('binance_assistant_sync_id', syncId);
+    }
+    return syncId;
+  } catch (err) {
+    return 'BIA-PORTFOLIO-MASTER';
   }
-  return syncId;
 }
 
 // Interfaces to match App.tsx types

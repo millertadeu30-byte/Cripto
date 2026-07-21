@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="pt-BR" class="notranslate">
+<html lang="pt-BR" class="notranslate" translate="no">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -12,12 +12,20 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
+      // Clean up old cached bundles and service workers to prevent blank white screen in normal browser windows
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then(reg => console.log('Service Worker registrado com sucesso:', reg.scope))
-            .catch(err => console.error('Erro ao registrar Service Worker:', err));
-        });
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          for (var i = 0; i < registrations.length; i++) {
+            registrations[i].unregister();
+          }
+        }).catch(function(err) {});
+      }
+      if ('caches' in window) {
+        caches.keys().then(function(names) {
+          for (var i = 0; i < names.length; i++) {
+            caches.delete(names[i]);
+          }
+        }).catch(function(err) {});
       }
     </script>
   </body>

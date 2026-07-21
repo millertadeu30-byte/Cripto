@@ -84,8 +84,16 @@ export default function App() {
 
   // Core Portfolio & Signals state loaded from local storage as offline fallback
   const [trades, setTrades] = useState<Trade[]>(() => {
-    const saved = localStorage.getItem('binance_assistant_trades');
-    return saved ? JSON.parse(saved) : INITIAL_TRADES;
+    try {
+      const saved = localStorage.getItem('binance_assistant_trades');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.warn('Erro ao ler trades do localStorage:', e);
+    }
+    return INITIAL_TRADES;
   });
 
   const tradesRef = useRef<Trade[]>(trades);
@@ -94,13 +102,29 @@ export default function App() {
   }, [trades]);
 
   const [recommendations, setRecommendations] = useState<Recommendation[]>(() => {
-    const saved = localStorage.getItem('binance_assistant_recommendations');
-    return saved ? JSON.parse(saved) : INITIAL_RECOMMENDATIONS;
+    try {
+      const saved = localStorage.getItem('binance_assistant_recommendations');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.warn('Erro ao ler recomendações do localStorage:', e);
+    }
+    return INITIAL_RECOMMENDATIONS;
   });
 
   const [history, setHistory] = useState<any[]>(() => {
-    const saved = localStorage.getItem('binance_assistant_history');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem('binance_assistant_history');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.warn('Erro ao ler histórico do localStorage:', e);
+    }
+    return [];
   });
 
   const [activityLogs, setActivityLogs] = useState<string[]>(INITIAL_LOGS);
@@ -128,42 +152,60 @@ export default function App() {
   
   // Lifted Goal Percent state for global simulator synchronization
   const [goalPercent, setGoalPercent] = useState<number>(() => {
-    const saved = localStorage.getItem('binance_assistant_goal_percent');
-    return saved ? Number(saved) : 5; // default 5%
+    try {
+      const saved = localStorage.getItem('binance_assistant_goal_percent');
+      return saved ? Number(saved) : 5; // default 5%
+    } catch (e) {
+      return 5;
+    }
   });
 
   const handleGoalPercentChange = (val: number) => {
     setGoalPercent(val);
-    localStorage.setItem('binance_assistant_goal_percent', String(val));
+    try { localStorage.setItem('binance_assistant_goal_percent', String(val)); } catch(e){}
   };
 
   // Global wallet cash balance state synchronized with Header and AddTradeModal
   const [cashBalance, setCashBalance] = useState<number>(() => {
-    const saved = localStorage.getItem('current_wallet_balance');
-    return saved ? parseFloat(saved) : 1000;
+    try {
+      const saved = localStorage.getItem('current_wallet_balance');
+      return saved ? parseFloat(saved) : 1000;
+    } catch (e) {
+      return 1000;
+    }
   });
 
   const [cashBalanceCurrency, setCashBalanceCurrency] = useState<'BRL' | 'USDT'>(() => {
-    const saved = localStorage.getItem('current_wallet_balance_currency');
-    return (saved === 'USDT' || saved === 'BRL') ? saved : 'BRL';
+    try {
+      const saved = localStorage.getItem('current_wallet_balance_currency');
+      return (saved === 'USDT' || saved === 'BRL') ? saved : 'BRL';
+    } catch (e) {
+      return 'BRL';
+    }
   });
 
   const handleUpdateCashBalance = (amount: number, currency: 'BRL' | 'USDT') => {
     setCashBalance(amount);
     setCashBalanceCurrency(currency);
-    localStorage.setItem('current_wallet_balance', amount.toFixed(4));
-    localStorage.setItem('current_wallet_balance_currency', currency);
+    try {
+      localStorage.setItem('current_wallet_balance', amount.toFixed(4));
+      localStorage.setItem('current_wallet_balance_currency', currency);
+    } catch(e){}
   };
   
   // Global display currency for synchronization across Header and PortfolioList
   const [displayCurrency, setDisplayCurrency] = useState<'BRL' | 'USDT' | 'BTC'>(() => {
-    const saved = localStorage.getItem('binance_assistant_display_currency');
-    return (saved as 'BRL' | 'USDT' | 'BTC') || 'BRL';
+    try {
+      const saved = localStorage.getItem('binance_assistant_display_currency');
+      return (saved as 'BRL' | 'USDT' | 'BTC') || 'BRL';
+    } catch (e) {
+      return 'BRL';
+    }
   });
 
   const handleDisplayCurrencyChange = (val: 'BRL' | 'USDT' | 'BTC') => {
     setDisplayCurrency(val);
-    localStorage.setItem('binance_assistant_display_currency', val);
+    try { localStorage.setItem('binance_assistant_display_currency', val); } catch(e){}
   };
   
   // Modals / Guides open states
@@ -227,19 +269,20 @@ export default function App() {
 
   // Sync state with localStorage (as instant offline backup)
   useEffect(() => {
-    localStorage.setItem('binance_assistant_trades', JSON.stringify(trades));
+    try { localStorage.setItem('binance_assistant_trades', JSON.stringify(trades)); } catch(e){}
   }, [trades]);
 
   useEffect(() => {
-    localStorage.setItem('binance_assistant_recommendations', JSON.stringify(recommendations));
+    try { localStorage.setItem('binance_assistant_recommendations', JSON.stringify(recommendations)); } catch(e){}
   }, [recommendations]);
 
   useEffect(() => {
-    localStorage.setItem('binance_assistant_history', JSON.stringify(history));
+    try { localStorage.setItem('binance_assistant_history', JSON.stringify(history)); } catch(e){}
   }, [history]);
 
   // Firestore Sync - Listen to cloud real-time updates
   const ignoreNextUpload = useRef(false);
+  const isCloudLoaded = useRef(false);
 
   useEffect(() => {
     setFirebaseStatus('syncing');
@@ -250,28 +293,33 @@ export default function App() {
         ignoreNextUpload.current = true;
         if (data.trades) {
           setTrades(data.trades);
+          try { localStorage.setItem('binance_assistant_trades', JSON.stringify(data.trades)); } catch(e){}
         }
         if (data.history) {
           setHistory(data.history);
+          try { localStorage.setItem('binance_assistant_history', JSON.stringify(data.history)); } catch(e){}
         }
         if (data.cashBalance !== undefined) {
           setCashBalance(data.cashBalance);
-          localStorage.setItem('current_wallet_balance', String(data.cashBalance));
+          try { localStorage.setItem('current_wallet_balance', String(data.cashBalance)); } catch(e){}
         }
         if (data.cashBalanceCurrency) {
           setCashBalanceCurrency(data.cashBalanceCurrency);
-          localStorage.setItem('current_wallet_balance_currency', data.cashBalanceCurrency);
+          try { localStorage.setItem('current_wallet_balance_currency', data.cashBalanceCurrency); } catch(e){}
         }
         if (data.displayCurrency) {
           setDisplayCurrency(data.displayCurrency);
-          localStorage.setItem('binance_assistant_display_currency', data.displayCurrency);
+          try { localStorage.setItem('binance_assistant_display_currency', data.displayCurrency); } catch(e){}
         }
         if (data.goalPercent !== undefined) {
           setGoalPercent(data.goalPercent);
-          localStorage.setItem('binance_assistant_goal_percent', String(data.goalPercent));
+          try { localStorage.setItem('binance_assistant_goal_percent', String(data.goalPercent)); } catch(e){}
         }
+        isCloudLoaded.current = true;
         setFirebaseStatus('synced');
         pushLog('🟢 Sincronização em tempo real do Firebase ativa!');
+      } else {
+        isCloudLoaded.current = true;
       }
     });
 
@@ -280,6 +328,11 @@ export default function App() {
 
   // Firestore Sync - Save local changes to cloud
   useEffect(() => {
+    // Only upload to cloud after cloud data has been loaded at least once
+    if (!isCloudLoaded.current) {
+      return;
+    }
+
     if (ignoreNextUpload.current) {
       ignoreNextUpload.current = false;
       return;
