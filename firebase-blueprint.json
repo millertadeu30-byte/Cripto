@@ -1,0 +1,47 @@
+{
+  "entities": {
+    "UserPortfolio": {
+      "title": "UserPortfolio",
+      "description": "User's synchronized portfolio, including active trades, closed trade history, cash balance, and display settings.",
+      "type": "object",
+      "properties": {
+        "trades": {
+          "type": "array",
+          "description": "List of active spot trades."
+        },
+        "history": {
+          "type": "array",
+          "description": "List of closed trades (sales)."
+        },
+        "cashBalance": {
+          "type": "number",
+          "description": "Available cash balance in the wallet."
+        },
+        "cashBalanceCurrency": {
+          "type": "string",
+          "description": "Currency of the cash balance (BRL or USDT)."
+        },
+        "displayCurrency": {
+          "type": "string",
+          "description": "Default display currency for portfolio valuation (BRL, USDT, BTC)."
+        },
+        "goalPercent": {
+          "type": "number",
+          "description": "Target profit goal percent configured by the user."
+        },
+        "lastUpdated": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of the last synchronization."
+        }
+      },
+      "required": ["trades", "history", "lastUpdated"]
+    }
+  },
+  "firestore": {
+    "/users/{syncId}": {
+      "schema": "UserPortfolio",
+      "description": "Collection of user portfolios identified by their secure device/sync ID."
+    }
+  }
+}

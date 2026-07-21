@@ -22,16 +22,32 @@ export function getDeviceSyncId(): string {
 export interface CloudData {
   trades: any[];
   history: any[];
+  cashBalance?: number;
+  cashBalanceCurrency?: 'BRL' | 'USDT';
+  displayCurrency?: 'BRL' | 'USDT' | 'BTC';
+  goalPercent?: number;
   lastUpdated: string;
 }
 
-// Save trades and history to Firestore
-export async function saveToCloud(syncId: string, trades: any[], history: any[]) {
+// Save trades, history, cash balance, and display parameters to Firestore
+export async function saveToCloud(
+  syncId: string,
+  trades: any[],
+  history: any[],
+  cashBalance: number,
+  cashBalanceCurrency: 'BRL' | 'USDT',
+  displayCurrency: 'BRL' | 'USDT' | 'BTC',
+  goalPercent: number
+) {
   try {
     const userDocRef = doc(db, 'users', syncId);
     await setDoc(userDocRef, {
       trades,
       history,
+      cashBalance,
+      cashBalanceCurrency,
+      displayCurrency,
+      goalPercent,
       lastUpdated: new Date().toISOString()
     }, { merge: true });
     console.log('Dados salvos na nuvem com sucesso!');
