@@ -1,23 +1,22 @@
-// Service Worker for Binance Assistente IA PWA
-const CACHE_NAME = 'binance-ia-v1';
-const ASSETS = [
-  '/',
-  '/index.html',
-  '/manifest.json'
-];
-
+// Self-destructing Service Worker to resolve caching/blank screen issues on Vercel
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS).catch(() => {});
+    caches.keys().then((keys) => {
+      return Promise.all(
+        keys.map((key) => caches.delete(key))
+      );
+    }).then(() => {
+      return self.clients.claim();
     })
   );
 });
 
 self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    caches.match(event.request).then((response) => {
-      return response || fetch(event.request);
-    })
-  );
+  // Always fetch directly from network. Do not cache or intercept requests anymore!
+  event.respondWith(fetch(event.request));
 });
+

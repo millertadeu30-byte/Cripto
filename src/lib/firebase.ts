@@ -7,7 +7,8 @@ let dbInstance: Firestore | null = null;
 try {
   if (firebaseConfig && firebaseConfig.projectId) {
     const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-    dbInstance = getFirestore(app);
+    const dbId = (firebaseConfig as any).firestoreDatabaseId;
+    dbInstance = dbId ? getFirestore(app, dbId) : getFirestore(app);
   }
 } catch (e) {
   console.warn('Erro ao inicializar Firebase Firestore:', e);
