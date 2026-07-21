@@ -1,10 +1,19 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, doc, setDoc, onSnapshot, getDoc } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, onSnapshot, getDoc, Firestore } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
-// Initialize Firebase
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-export const db = getFirestore(app);
+// Initialize Firebase safely
+let dbInstance: Firestore | null = null;
+try {
+  if (firebaseConfig && firebaseConfig.projectId) {
+    const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+    dbInstance = getFirestore(app);
+  }
+} catch (e) {
+  console.warn('Erro ao inicializar Firebase Firestore:', e);
+}
+
+export const db = dbInstance;
 
 // Retrieve or generate a unique Device/Sync ID to identify this user's data in the cloud
 export function getDeviceSyncId(): string {
@@ -41,6 +50,7 @@ export async function saveToCloud(
   displayCurrency: 'BRL' | 'USDT' | 'BTC',
   goalPercent: number
 ) {
+  if (!db) return;
   try {
     const userDocRef = doc(db, 'users', syncId);
     await setDoc(userDocRef, {
@@ -60,6 +70,7 @@ export async function saveToCloud(
 
 // Fetch once from cloud
 export async function fetchFromCloud(syncId: string): Promise<CloudData | null> {
+  if (!db) return null;
   try {
     const userDocRef = doc(db, 'users', syncId);
     const snap = await getDoc(userDocRef);
@@ -73,13 +84,26 @@ export async function fetchFromCloud(syncId: string): Promise<CloudData | null> 
 }
 
 // Listen to real-time changes
-export function subscribeToCloud(syncId: string, callback: (data: CloudData) => void) {
-  const userDocRef = doc(db, 'users', syncId);
-  return onSnapshot(userDocRef, (docSnap) => {
-    if (docSnap.exists()) {
-      callback(docSnap.data() as CloudData);
-    }
-  }, (err) => {
-    console.error('Erro na escuta em tempo real do Firebase:', err);
-  });
+export function subscribeToCloud(syncId: string, callback: (data: CloudData | null) => void) {
+  if (!db) {
+    callback(null);
+    return () => {};
+  }
+  try {
+    const userDocRef = doc(db, 'users', syncId);
+    return onSnapshot(userDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        callback(docSnap.data() as CloudData);
+      } else {
+        callback(null);
+      }
+    }, (err) => {
+      console.error('Erro na escuta em tempo real do Firebase:', err);
+      callback(null);
+    });
+  } catch (e) {
+    console.error('Erro ao assinar listener do Firestore:', e);
+    callback(null);
+    return () => {};
+  }
 }
