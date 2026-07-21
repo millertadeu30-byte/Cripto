@@ -367,6 +367,65 @@ export default function Header({
                 </div>
               )}
             </div>
+
+            {/* Discrete Active Investments Breakdown per Asset on Main Panel */}
+            {!hideBalances && trades.length > 0 && (
+              <div className="mt-4 pt-3 border-t border-gray-800/80 space-y-2 max-w-2xl">
+                <div className="flex items-center justify-between text-[11px] font-bold text-gray-400">
+                  <span className="flex items-center gap-1.5 text-white">
+                    <span className="text-[#f0b90b]">💼</span> Investimentos Ativos ({trades.length})
+                  </span>
+                  <span className="text-[10px] text-gray-500 font-mono">Desaparece ao vender</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {trades.map(trade => {
+                    const rate = usdtBrl || 5.62;
+                    const rawLivePrice = marketPrices[trade.symbol] || trade.currentPrice;
+                    const livePriceBrl = trade.currency === 'BRL' ? rawLivePrice : rawLivePrice * rate;
+                    const currentValueBrl = livePriceBrl * trade.amount;
+                    
+                    const purchasePriceBrl = trade.purchasePriceInBrl || (trade.currency === 'BRL' ? trade.purchasePrice : trade.purchasePrice * rate);
+                    const totalInvestedBrl = purchasePriceBrl * trade.amount;
+                    
+                    const itemPnlBrl = currentValueBrl - totalInvestedBrl;
+                    const itemPnlPercent = totalInvestedBrl > 0 ? (itemPnlBrl / totalInvestedBrl) * 100 : 0;
+                    const isProfitable = itemPnlBrl >= 0;
+
+                    const displaySymbol = trade.currency === 'USDT' ? '$' : 'R$';
+                    const nativeInvested = trade.totalInvested || (trade.purchasePrice * trade.amount);
+                    const nativeCurrent = (marketPrices[trade.symbol] || trade.currentPrice) * trade.amount;
+
+                    return (
+                      <div 
+                        key={trade.id} 
+                        className="bg-[#1e2026] border border-gray-800/80 hover:border-gray-700/80 rounded-xl p-2.5 flex items-center justify-between text-xs transition-all"
+                      >
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-extrabold text-white font-sans">{trade.symbol}</span>
+                            <span className="text-[10px] text-gray-500 truncate max-w-[80px]">{trade.coinName}</span>
+                          </div>
+                          <div className="text-[10px] text-gray-400 font-mono">
+                            <span>Investido: </span>
+                            <span className="text-gray-300 font-bold">{displaySymbol} {nativeInvested.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          </div>
+                        </div>
+
+                        <div className="text-right space-y-0.5 font-mono">
+                          <div className="text-white font-bold text-[11px]">
+                            {displaySymbol} {nativeCurrent.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </div>
+                          <div className={`text-[10px] font-bold ${isProfitable ? 'text-[#0ecb81]' : 'text-[#f6465d]'}`}>
+                            {isProfitable ? '+' : ''}{displaySymbol} {Math.abs(nativeCurrent - nativeInvested).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({itemPnlPercent >= 0 ? '+' : ''}{itemPnlPercent.toFixed(2)}%)
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Today's / Total PNL Tracker */}

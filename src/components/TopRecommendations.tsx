@@ -26,15 +26,17 @@ export default function TopRecommendations({ recommendations, isLoading, onBuyCl
     <div id="top-recommendations-section" className="bg-[#181a20] rounded-2xl border border-gray-800 p-6 space-y-6">
       
       {/* Title Header */}
-      <div className="flex items-center justify-between border-b border-gray-800 pb-3">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-gray-800 pb-3 gap-2">
         <div className="flex items-center gap-2">
           <TrendingUp className="w-5 h-5 text-[#f0b90b]" />
           <h3 className="text-lg font-bold text-white font-sans flex flex-wrap items-center gap-2">
-            <span>Sinais & Oportunidades do Mercado</span>
-            <span className="text-[10px] bg-[#f0b90b]/10 text-[#f0b90b] font-mono border border-[#f0b90b]/20 px-2 py-0.5 rounded uppercase font-extrabold">Sugestões de Compra</span>
+            <span>Sinais & Oportunidades de Mercado</span>
+            <span className="text-[10px] bg-[#f0b90b]/10 text-[#f0b90b] font-mono border border-[#f0b90b]/20 px-2 py-0.5 rounded uppercase font-extrabold">Ranking de Oportunidades</span>
           </h3>
         </div>
-        <span className="text-xs text-gray-500 font-mono">Dicas Extras da IA</span>
+        <span className="text-[11px] text-gray-400 font-mono bg-gray-900/60 px-2.5 py-1 rounded-lg border border-gray-800">
+          🏆 <strong>Sinal #1</strong> = A Melhor Oportunidade Principal
+        </span>
       </div>
 
       {recommendations.length === 0 ? (
@@ -55,8 +57,8 @@ export default function TopRecommendations({ recommendations, isLoading, onBuyCl
                 className={`relative bg-[#1e2026] hover:bg-[#2b2f36]/60 rounded-xl border transition-all duration-300 p-5 overflow-hidden flex flex-col justify-between ${isFirst ? 'border-[#f0b90b] shadow-[0_0_15px_rgba(240,185,11,0.07)]' : 'border-gray-800/80'}`}
               >
                 {/* Ranking Tag */}
-                <div className="absolute top-0 right-0 bg-[#f0b90b] text-black text-[10px] font-extrabold px-3 py-1 rounded-bl-lg uppercase tracking-wider font-mono">
-                  SINAL #{index + 1}
+                <div className={`absolute top-0 right-0 text-[10px] font-extrabold px-3 py-1 rounded-bl-lg uppercase tracking-wider font-mono ${isFirst ? 'bg-[#f0b90b] text-black shadow-md' : 'bg-gray-800 text-gray-300'}`}>
+                  {isFirst ? '🏆 MELHOR DA IA (#1)' : `SINAL #${index + 1}`}
                 </div>
 
                 {/* Top Info */}
