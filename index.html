@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="google" content="notranslate" />
     <meta name="theme-color" content="#181a20" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Binance IA" />
+    <link rel="apple-touch-icon" href="/icon.jpg" />
+    <link rel="icon" type="image/jpeg" href="/icon.jpg" />
     <link rel="manifest" href="/manifest.json" />
     <title>Binance Assistente IA</title>
   </head>
@@ -12,20 +17,28 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
-      // Clean up old cached bundles and service workers to prevent blank white screen in normal browser windows
+      // Register the service worker to make the app a fully installable PWA
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function(registrations) {
-          for (var i = 0; i < registrations.length; i++) {
-            registrations[i].unregister();
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/sw.js')
+            .then(function(registration) {
+              console.log('Service Worker registrado com sucesso:', registration.scope);
+              // Force update check immediately on load to prevent any blank screen from old assets
+              registration.update();
+            })
+            .catch(function(error) {
+              console.error('Erro ao registrar Service Worker:', error);
+            });
+        });
+
+        // Auto reload the page when the new Service Worker activates to ensure the client gets the newest assets
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', function() {
+          if (!refreshing) {
+            refreshing = true;
+            window.location.reload();
           }
-        }).catch(function(err) {});
-      }
-      if ('caches' in window) {
-        caches.keys().then(function(names) {
-          for (var i = 0; i < names.length; i++) {
-            caches.delete(names[i]);
-          }
-        }).catch(function(err) {});
+        });
       }
     </script>
   </body>

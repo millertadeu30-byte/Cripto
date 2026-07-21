@@ -1,23 +1,43 @@
 {
   "name": "Binance Assistente IA",
   "short_name": "Binance IA",
-  "description": "Consultor Sênior de Sinais Spot para Criptoativos",
+  "description": "Consultor Sênior de Sinais Spot e Portfólio de Criptoativos",
   "start_url": "/",
   "display": "standalone",
-  "orientation": "portrait",
   "background_color": "#181a20",
-  "theme_color": "#f0b90b",
+  "theme_color": "#181a20",
+  "orientation": "portrait-primary",
+  "categories": ["finance", "utilities"],
   "icons": [
     {
       "src": "/icon.jpg",
       "sizes": "192x192",
       "type": "image/jpeg",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "purpose": "maskable"
     },
     {
       "src": "/icon.jpg",
       "sizes": "512x512",
-      "type": "image/jpeg"
+      "type": "image/jpeg",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Sinais Spot",
+      "url": "/",
+      "description": "Visualizar os sinais e recomendações ativos"
+    },
+    {
+      "name": "Simulador de Lucros",
+      "url": "/",
+      "description": "Calcular metas e simular lucros"
     }
   ]
 }

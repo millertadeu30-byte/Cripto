@@ -145,7 +145,33 @@ export default function App() {
     'TOWNSBRL': 0.011765 // Initial fallback
   });
 
-  const [usdtBrl, setUsdtBrl] = useState<number>(5.15);
+  const [usdtBrl, setUsdtBrl] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('binance_assistant_usdt_brl_rate');
+      return saved ? parseFloat(saved) : 5.15;
+    } catch (e) {
+      return 5.15;
+    }
+  });
+
+  const [isManualRate, setIsManualRate] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('binance_assistant_usdt_brl_manual') === 'true';
+    } catch (e) {
+      return false;
+    }
+  });
+
+  const handleUpdateUsdtBrl = (rate: number, isManual: boolean = true) => {
+    setUsdtBrl(rate);
+    setIsManualRate(isManual);
+    try {
+      localStorage.setItem('binance_assistant_usdt_brl_rate', rate.toString());
+      localStorage.setItem('binance_assistant_usdt_brl_manual', isManual ? 'true' : 'false');
+    } catch (e) {
+      console.warn('Erro ao salvar taxa de câmbio no localStorage:', e);
+    }
+  };
   const [countdown, setCountdown] = useState<number>(1800); // 30 minutes countdown
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [lastAnalysisTime, setLastAnalysisTime] = useState<Date | null>(new Date());
@@ -418,8 +444,14 @@ export default function App() {
 
       // Process USDTBRL price
       const usdtBrlItem = tickerData.find(item => item.symbol === "USDTBRL");
-      const freshUsdtBrl = usdtBrlItem ? parseFloat(usdtBrlItem.lastPrice) : usdtBrl;
-      setUsdtBrl(freshUsdtBrl);
+      const apiUsdtBrl = usdtBrlItem ? parseFloat(usdtBrlItem.lastPrice) : usdtBrl;
+      
+      let freshUsdtBrl = apiUsdtBrl;
+      if (isManualRate) {
+        freshUsdtBrl = usdtBrl; // Use the manual override
+      } else {
+        setUsdtBrl(apiUsdtBrl);
+      }
 
       // Map prices dictionary
       const prices: { [key: string]: number } = {};
@@ -752,6 +784,8 @@ export default function App() {
       <Header 
         trades={trades}
         usdtBrl={usdtBrl}
+        isManualRate={isManualRate}
+        onUpdateUsdtBrl={handleUpdateUsdtBrl}
         marketPrices={marketPrices}
         onAddTradeClick={() => {
           setPrefilledTrade(null);

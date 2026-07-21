@@ -5,6 +5,8 @@ import { Trade } from '../types';
 interface HeaderProps {
   trades: Trade[];
   usdtBrl: number;
+  isManualRate?: boolean;
+  onUpdateUsdtBrl?: (rate: number, isManual?: boolean) => void;
   marketPrices: { [key: string]: number };
   onAddTradeClick: () => void;
   onReanalyzeClick: () => void;
@@ -21,6 +23,8 @@ interface HeaderProps {
 export default function Header({
   trades,
   usdtBrl,
+  isManualRate = false,
+  onUpdateUsdtBrl,
   marketPrices,
   onAddTradeClick,
   onReanalyzeClick,
@@ -42,11 +46,28 @@ export default function Header({
   const [editCashVal, setEditCashVal] = useState(cashBalance.toString());
   const [editCashCurr, setEditCashCurr] = useState<'BRL' | 'USDT'>(cashBalanceCurrency);
 
+  // Exchange rate inline editor states
+  const [isEditingRate, setIsEditingRate] = useState(false);
+  const [editRateVal, setEditRateVal] = useState(usdtBrl.toString());
+
+  // Value tip display state
+  const [showValueTip, setShowValueTip] = useState(() => {
+    try {
+      return localStorage.getItem('binance_assistant_show_value_tip') !== 'false';
+    } catch (e) {
+      return true;
+    }
+  });
+
   // Sync editor with state updates
   useEffect(() => {
     setEditCashVal(cashBalance.toString());
     setEditCashCurr(cashBalanceCurrency);
   }, [cashBalance, cashBalanceCurrency]);
+
+  useEffect(() => {
+    setEditRateVal(usdtBrl.toString());
+  }, [usdtBrl]);
 
   const handleSaveCashEdit = () => {
     const val = parseFloat(editCashVal) || 0;
@@ -54,6 +75,21 @@ export default function Header({
       onUpdateCashBalance(val, editCashCurr);
     }
     setIsEditingCash(false);
+  };
+
+  const handleSaveRateEdit = () => {
+    const val = parseFloat(editRateVal) || 5.15;
+    if (onUpdateUsdtBrl) {
+      onUpdateUsdtBrl(val, true);
+    }
+    setIsEditingRate(false);
+  };
+
+  const handleCloseValueTip = () => {
+    setShowValueTip(false);
+    try {
+      localStorage.setItem('binance_assistant_show_value_tip', 'false');
+    } catch (e) {}
   };
 
   // Compute total active balance in BRL
@@ -200,6 +236,20 @@ export default function Header({
               title={hideBalances ? "Mostrar saldos" : "Ocultar saldos"}
             >
               {hideBalances ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+            <button
+              id="toggle-value-tip-btn"
+              onClick={() => {
+                const nextVal = !showValueTip;
+                setShowValueTip(nextVal);
+                try {
+                  localStorage.setItem('binance_assistant_show_value_tip', nextVal ? 'true' : 'false');
+                } catch (e) {}
+              }}
+              className={`p-0.5 rounded transition-colors ${showValueTip ? 'text-[#f0b90b] hover:text-[#d4a30a]' : 'text-gray-500 hover:text-gray-300'}`}
+              title={showValueTip ? "Ocultar dica de saldo" : "Mostrar dica de saldo"}
+            >
+              <HelpCircle className="w-4 h-4" />
             </button>
             {isAnalyzing && (
               <span className="text-[10px] text-[#f0b90b] animate-pulse flex items-center gap-1.5 bg-[#f0b90b]/10 px-2 py-0.5 rounded-full border border-[#f0b90b]/20">
@@ -358,18 +408,25 @@ export default function Header({
               </div>
 
               {/* Explanatory helpful tip to avoid double counting confusion */}
-              {!hideBalances && (
-                <div className="text-xs text-gray-400/90 font-sans mt-2.5 max-w-lg leading-relaxed flex items-start gap-2 bg-[#f0b90b]/5 p-3 rounded-lg border border-[#f0b90b]/20">
+              {!hideBalances && showValueTip && (
+                <div className="text-xs text-gray-400/90 font-sans mt-2.5 max-w-lg leading-relaxed flex items-start gap-2 bg-[#f0b90b]/5 p-3 rounded-lg border border-[#f0b90b]/20 relative group pr-8">
                   <AlertCircle className="w-3.5 h-3.5 text-[#f0b90b] shrink-0 mt-0.5" />
                   <span>
                     O <strong>Valor total estimado</strong> soma os seus ativos de cripto (R$ {cryptoOnlyBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}) com o seu dinheiro em caixa (R$ {cashBalanceBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}). Se você já usou todo o dinheiro para comprar os ativos, edite o Saldo em Caixa para <strong>R$ 0,00</strong> clicando no lápis amarelo ao lado.
                   </span>
+                  <button
+                    onClick={handleCloseValueTip}
+                    className="absolute top-2 right-2 text-gray-500 hover:text-white transition-colors p-0.5 rounded-md hover:bg-gray-800"
+                    title="Fechar dica"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               )}
             </div>
 
             {/* Discrete Active Investments Breakdown per Asset on Main Panel */}
-            {!hideBalances && trades.length > 0 && (
+            {!hideBalances && (
               <div className="mt-4 pt-3 border-t border-gray-800/80 space-y-2 max-w-2xl">
                 <div className="flex items-center justify-between text-[11px] font-bold text-gray-400">
                   <span className="flex items-center gap-1.5 text-white">
@@ -378,52 +435,77 @@ export default function Header({
                   <span className="text-[10px] text-gray-500 font-mono">Desaparece ao vender</span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {trades.map(trade => {
-                    const rate = usdtBrl || 5.62;
-                    const rawLivePrice = marketPrices[trade.symbol] || trade.currentPrice;
-                    const livePriceBrl = trade.currency === 'BRL' ? rawLivePrice : rawLivePrice * rate;
-                    const currentValueBrl = livePriceBrl * trade.amount;
-                    
-                    const purchasePriceBrl = trade.purchasePriceInBrl || (trade.currency === 'BRL' ? trade.purchasePrice : trade.purchasePrice * rate);
-                    const totalInvestedBrl = purchasePriceBrl * trade.amount;
-                    
-                    const itemPnlBrl = currentValueBrl - totalInvestedBrl;
-                    const itemPnlPercent = totalInvestedBrl > 0 ? (itemPnlBrl / totalInvestedBrl) * 100 : 0;
-                    const isProfitable = itemPnlBrl >= 0;
+                {trades.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {trades.map(trade => {
+                      const rate = usdtBrl || 5.62;
+                      const rawLivePrice = marketPrices[trade.symbol] || trade.currentPrice;
+                      const livePriceBrl = trade.currency === 'BRL' ? rawLivePrice : rawLivePrice * rate;
+                      const currentValueBrl = livePriceBrl * trade.amount;
+                      
+                      const purchasePriceBrl = trade.purchasePriceInBrl || (trade.currency === 'BRL' ? trade.purchasePrice : trade.purchasePrice * rate);
+                      const totalInvestedBrl = purchasePriceBrl * trade.amount;
+                      
+                      const itemPnlBrl = currentValueBrl - totalInvestedBrl;
+                      const itemPnlPercent = totalInvestedBrl > 0 ? (itemPnlBrl / totalInvestedBrl) * 100 : 0;
+                      const isProfitable = itemPnlBrl >= 0;
 
-                    const displaySymbol = trade.currency === 'USDT' ? '$' : 'R$';
-                    const nativeInvested = trade.totalInvested || (trade.purchasePrice * trade.amount);
-                    const nativeCurrent = (marketPrices[trade.symbol] || trade.currentPrice) * trade.amount;
+                      const displaySymbol = trade.currency === 'USDT' ? '$' : 'R$';
+                      const nativeInvested = trade.totalInvested || (trade.purchasePrice * trade.amount);
+                      const nativeCurrent = (marketPrices[trade.symbol] || trade.currentPrice) * trade.amount;
 
-                    return (
-                      <div 
-                        key={trade.id} 
-                        className="bg-[#1e2026] border border-gray-800/80 hover:border-gray-700/80 rounded-xl p-2.5 flex items-center justify-between text-xs transition-all"
-                      >
-                        <div className="space-y-0.5">
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-extrabold text-white font-sans">{trade.symbol}</span>
-                            <span className="text-[10px] text-gray-500 truncate max-w-[80px]">{trade.coinName}</span>
+                      return (
+                        <div 
+                          key={trade.id} 
+                          className="bg-[#1e2026] border border-gray-800/80 hover:border-gray-700/80 rounded-xl p-2.5 flex items-center justify-between text-xs transition-all"
+                        >
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-extrabold text-white font-sans">{trade.symbol}</span>
+                              <span className="text-[10px] text-gray-500 truncate max-w-[80px]">{trade.coinName}</span>
+                            </div>
+                            <div className="text-[10px] text-gray-400 font-mono">
+                              <span>Investido: </span>
+                              <span className="text-gray-300 font-bold">
+                                {displaySymbol} {nativeInvested.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {trade.currency === 'USDT' && (
+                                  <span className="text-[9px] text-gray-500 font-semibold ml-1">
+                                    (R$ {totalInvestedBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                                  </span>
+                                )}
+                              </span>
+                            </div>
                           </div>
-                          <div className="text-[10px] text-gray-400 font-mono">
-                            <span>Investido: </span>
-                            <span className="text-gray-300 font-bold">{displaySymbol} {nativeInvested.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+
+                          <div className="text-right space-y-0.5 font-mono">
+                            <div className="text-white font-bold text-[11px]">
+                              {displaySymbol} {nativeCurrent.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {trade.currency === 'USDT' && (
+                                <span className="text-[10px] text-gray-400 font-medium ml-1.5">
+                                  (R$ {currentValueBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                                </span>
+                              )}
+                            </div>
+                            <div className={`text-[10px] font-bold ${isProfitable ? 'text-[#0ecb81]' : 'text-[#f6465d]'}`}>
+                              {isProfitable ? '+' : ''}{displaySymbol} {Math.abs(nativeCurrent - nativeInvested).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {trade.currency === 'USDT' && (
+                                <span className="text-[9px] opacity-85 ml-1">
+                                  ({isProfitable ? '+' : ''}R$ {Math.abs(itemPnlBrl).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                                </span>
+                              )}
+                              {' '}
+                              ({itemPnlPercent >= 0 ? '+' : ''}{itemPnlPercent.toFixed(2)}%)
+                            </div>
                           </div>
                         </div>
-
-                        <div className="text-right space-y-0.5 font-mono">
-                          <div className="text-white font-bold text-[11px]">
-                            {displaySymbol} {nativeCurrent.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </div>
-                          <div className={`text-[10px] font-bold ${isProfitable ? 'text-[#0ecb81]' : 'text-[#f6465d]'}`}>
-                            {isProfitable ? '+' : ''}{displaySymbol} {Math.abs(nativeCurrent - nativeInvested).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({itemPnlPercent >= 0 ? '+' : ''}{itemPnlPercent.toFixed(2)}%)
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="bg-[#1e2026]/40 border border-dashed border-gray-800 rounded-xl p-3 text-center text-xs text-gray-500 leading-relaxed">
+                    Nenhum investimento ativo registrado. Adicione uma nova operação clicando em <strong className="text-[#f0b90b]">Adicionar Operação</strong> no topo ou use o seu <strong className="text-[#f0b90b]">ID de Sincronização</strong> para carregar seus dados salvos pelo celular!
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -457,9 +539,56 @@ export default function Header({
 
           {/* Real-time Exchange Rate & Last Analysis Info */}
           <div className="flex items-center gap-6 text-xs text-gray-400 font-sans mt-2.5 flex-wrap">
-            <div>
+            <div className="flex items-center gap-1.5">
               <span className="text-gray-500 font-medium">Taxa Câmbio:</span>{' '}
-              <span className="text-gray-200 font-mono font-bold">1 USDT = R$ {usdtBrl.toFixed(2)}</span>
+              {isEditingRate ? (
+                <div className="flex items-center gap-1 bg-[#1e2026] border border-[#f0b90b]/40 rounded px-1.5 py-0.5 animate-in fade-in zoom-in-95 duration-150">
+                  <span className="text-[10px] text-gray-400 font-mono">1 USDT = R$</span>
+                  <input 
+                    id="inline-rate-input"
+                    type="number"
+                    step="0.01"
+                    className="w-12 bg-transparent text-white font-mono font-bold text-xs focus:outline-none"
+                    value={editRateVal}
+                    onChange={(e) => setEditRateVal(e.target.value)}
+                    autoFocus
+                  />
+                  <button 
+                    id="inline-rate-confirm-btn"
+                    onClick={handleSaveRateEdit}
+                    className="p-0.5 hover:bg-gray-800 rounded text-[#0ecb81]"
+                    title="Confirmar alteração"
+                  >
+                    <Check className="w-3 h-3" />
+                  </button>
+                  <button 
+                    id="inline-rate-cancel-btn"
+                    onClick={() => setIsEditingRate(false)}
+                    className="p-0.5 hover:bg-gray-800 rounded text-[#f6465d]"
+                    title="Cancelar"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1">
+                  <span className="text-gray-200 font-mono font-bold">1 USDT = R$ {usdtBrl.toFixed(2)}</span>
+                  {isManualRate && (
+                    <span className="text-[9px] bg-[#f0b90b]/10 text-[#f0b90b] border border-[#f0b90b]/20 px-1 py-0.5 rounded-sm font-semibold ml-1">Manual</span>
+                  )}
+                  <button 
+                    id="edit-rate-trigger-btn"
+                    onClick={() => {
+                      setEditRateVal(usdtBrl.toString());
+                      setIsEditingRate(true);
+                    }}
+                    className="p-0.5 hover:bg-gray-800 rounded transition-colors ml-0.5"
+                    title="Ajustar taxa de câmbio"
+                  >
+                    <Pencil className="w-3 h-3 text-[#f0b90b]" />
+                  </button>
+                </div>
+              )}
             </div>
             {lastAnalysisTime && (
               <div>
