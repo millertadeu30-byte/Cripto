@@ -27,6 +27,8 @@ export interface Trade {
   aiTargetPrice?: number;
   aiStopLossPrice?: number;
   isManualPrice?: boolean;  // Se true, o preço atual foi fixado manualmente e não será sobrescrito pela API
+  retracementPercent?: number; // Porcentagem de retração customizada para stop loss
+  maxPriceReached?: number;    // Preço máximo atingido pela moeda desde a compra
 }
 
 export interface MarketPrice {

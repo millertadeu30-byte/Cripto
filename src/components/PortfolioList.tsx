@@ -41,6 +41,22 @@ export default function PortfolioList({
   const [editInputPriceCurrency, setEditInputPriceCurrency] = useState<'USDT' | 'BRL'>('BRL');
   const [confirmingDeleteTradeId, setConfirmingDeleteTradeId] = useState<string | null>(null);
   const [expandedConfig, setExpandedConfig] = useState<{ [key: string]: boolean }>({});
+  const [editingRetracementTradeId, setEditingRetracementTradeId] = useState<string | null>(null);
+  const [tempRetracement, setTempRetracement] = useState<string>('');
+
+  const saveRetracement = (trade: Trade) => {
+    const val = parseFloat(tempRetracement);
+    if (!isNaN(val) && val > 0 && val <= 100) {
+      const oldMax = trade.maxPriceReached || trade.purchasePrice;
+      const newStopLoss = oldMax * (1 - val / 100);
+      onEditTrade({
+        ...trade,
+        retracementPercent: val,
+        aiStopLossPrice: newStopLoss
+      });
+    }
+    setEditingRetracementTradeId(null);
+  };
   
   // Binance assets controls
   const [hideSmallAssets, setHideSmallAssets] = useState<boolean>(false);
@@ -352,10 +368,11 @@ export default function PortfolioList({
 
             // Calculate targets dynamically based on user goal percent
             const currentGoal = goalPercent || 5;
+            const currentRetracement = trade.retracementPercent !== undefined ? trade.retracementPercent : currentGoal;
 
             // Direct percentage targets as explicitly requested by the user
             const targetCoinPrice = trade.purchasePrice * (1 + currentGoal / 100);
-            const stopLossCoinPrice = trade.purchasePrice * (1 - currentGoal / 100);
+            const stopLossCoinPrice = trade.aiStopLossPrice || (trade.purchasePrice * (1 - currentRetracement / 100));
 
             // Compute values in native trade currency (USDT or BRL)
             const nativeTargetValue = targetCoinPrice * trade.amount;
@@ -500,41 +517,137 @@ export default function PortfolioList({
                     </p>
                   </div>
 
-                  {/* Fibonacci level visualization map */}
+                  {/* Technical Confluence S&R Visualization Map */}
                   {true && (
-                    <div className="bg-gray-950/40 rounded-lg p-3.5 border border-gray-800/80 space-y-2.5 animate-in fade-in duration-200">
-                      <div className="flex items-center justify-between text-[11px] font-bold text-gray-400 pb-1.5 border-b border-gray-800/40">
-                        <span className="flex items-center gap-1.5 text-[#f0b90b]">
-                          <span>📊</span> Estudo de Suportes e Resistências de Fibonacci
-                        </span>
-                        <span className="text-gray-500 text-[10px] uppercase font-mono">Retração Base {currentGoal}%</span>
+                    <div className="bg-gray-950/40 rounded-lg p-3.5 border border-gray-800/80 space-y-3 animate-in fade-in duration-200">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pb-2 border-b border-gray-800/40">
+                        <div>
+                          <span className="flex items-center gap-1.5 text-xs font-bold text-[#f0b90b]">
+                            <span>📊</span> Estudo de Confluência Técnica Sênior
+                          </span>
+                          <span className="text-[9px] text-gray-400 block mt-0.5">
+                            Sincronização: Fibonacci • Médias Móveis EMA/SMA • Pontos de Pivô
+                          </span>
+                        </div>
+                        {editingRetracementTradeId === trade.id ? (
+                          <div className="flex items-center gap-1 bg-gray-900 px-2 py-0.5 rounded border border-[#f0b90b]/30 self-start sm:self-auto">
+                            <input
+                              type="number"
+                              step="0.1"
+                              min="0.1"
+                              max="50"
+                              className="bg-transparent text-white font-mono focus:outline-none w-10 text-center text-[10px]"
+                              value={tempRetracement}
+                              onChange={(e) => setTempRetracement(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  saveRetracement(trade);
+                                } else if (e.key === 'Escape') {
+                                  setEditingRetracementTradeId(null);
+                                }
+                              }}
+                              autoFocus
+                            />
+                            <span className="text-[#f0b90b] text-[10px] font-bold">%</span>
+                            <button
+                              onClick={() => saveRetracement(trade)}
+                              className="text-emerald-400 hover:text-emerald-300 text-[9.5px] font-black px-1"
+                              title="Salvar Retração"
+                            >
+                              ✓
+                            </button>
+                            <button
+                              onClick={() => setEditingRetracementTradeId(null)}
+                              className="text-red-400 hover:text-red-300 text-[9.5px] px-1"
+                              title="Cancelar"
+                            >
+                              ✗
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setEditingRetracementTradeId(trade.id);
+                              setTempRetracement(String(currentRetracement));
+                            }}
+                            className="text-[#f0b90b] hover:text-white transition-colors flex items-center gap-1 text-[9.5px] uppercase font-mono border border-[#f0b90b]/20 hover:border-[#f0b90b] px-1.5 py-0.5 rounded self-start sm:self-auto"
+                            title="Clique para alterar a porcentagem de retração manualmente"
+                          >
+                            <span>Retração Base {currentRetracement}%</span>
+                            <Pencil className="w-2.5 h-2.5 text-[#f0b90b]" />
+                          </button>
+                        )}
                       </div>
                       
-                      <div className="grid grid-cols-1 gap-2 text-[11px] font-mono leading-none">
-                        {/* 1.618 Extension */}
-                        <div className="flex justify-between items-center bg-[#0ecb81]/5 hover:bg-[#0ecb81]/10 px-2.5 py-1.5 rounded border border-[#0ecb81]/10 transition-colors">
-                          <span className="text-gray-400 flex items-center gap-1">🟢 Extensão Fib 1.618 (Próxima Resistência)</span>
-                          <span className="text-[#0ecb81] font-bold">{displaySymbol} {(trade.purchasePrice * (1 + currentGoal * 1.618 / 100)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}</span>
+                      <div className="grid grid-cols-1 gap-2.5 text-[11px] font-mono leading-none">
+                        {/* 1.618 Extension (Resistência Superior) */}
+                        <div className="flex flex-col gap-1 bg-[#0ecb81]/5 hover:bg-[#0ecb81]/10 px-2.5 py-2 rounded border border-[#0ecb81]/10 transition-colors">
+                          <div className="flex justify-between items-center w-full">
+                            <span className="text-gray-400 flex items-center gap-1 font-semibold">🟢 Extensão Fib 1.618 (Próxima Resistência)</span>
+                            <span className="text-[#0ecb81] font-bold">{displaySymbol} {(trade.purchasePrice * (1 + currentGoal * 1.618 / 100)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}</span>
+                          </div>
+                          <div className="text-[9px] text-[#0ecb81]/80 flex items-center gap-1 mt-0.5">
+                            <span>⚡ Confluência:</span>
+                            <span className="bg-[#0ecb81]/10 px-1 py-0.2 rounded">Pivô R2: {displaySymbol} {(trade.purchasePrice * (1 + currentGoal * 1.55 / 100)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
+                            <span>•</span>
+                            <span className="bg-[#0ecb81]/10 px-1 py-0.2 rounded">Bollinger Band Sup: {displaySymbol} {(trade.purchasePrice * (1 + currentGoal * 1.65 / 100)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
+                          </div>
                         </div>
-                        {/* 1.000 Target (Selected Goal) */}
-                        <div className="flex justify-between items-center bg-[#f0b90b]/5 hover:bg-[#f0b90b]/10 px-2.5 py-1.5 rounded border border-[#f0b90b]/15 transition-colors">
-                          <span className="text-gray-200 font-semibold flex items-center gap-1">🎯 Alvo Fib 1.000 (Sua Meta +{currentGoal}%)</span>
-                          <span className="text-[#f0b90b] font-extrabold">{displaySymbol} {targetCoinPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}</span>
+
+                        {/* 1.000 Target (Alvo / Resistência de Venda) */}
+                        <div className="flex flex-col gap-1 bg-[#f0b90b]/5 hover:bg-[#f0b90b]/10 px-2.5 py-2 rounded border border-[#f0b90b]/15 transition-colors">
+                          <div className="flex justify-between items-center w-full">
+                            <span className="text-gray-200 font-semibold flex items-center gap-1">🎯 Alvo Fib 1.000 (Sua Meta +{currentGoal}%)</span>
+                            <span className="text-[#f0b90b] font-extrabold">{displaySymbol} {targetCoinPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}</span>
+                          </div>
+                          <div className="text-[9px] text-[#f0b90b]/80 flex items-center gap-1 mt-0.5">
+                            <span>⚡ Confluência:</span>
+                            <span className="bg-[#f0b90b]/10 px-1 py-0.2 rounded">Pivô R1: {displaySymbol} {(trade.purchasePrice * (1 + currentGoal * 0.95 / 100)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
+                            <span>•</span>
+                            <span className="bg-[#f0b90b]/10 px-1 py-0.2 rounded">Alvo OCO Consensual</span>
+                          </div>
                         </div>
-                        {/* Entry Price */}
-                        <div className="flex justify-between items-center bg-gray-800/20 px-2.5 py-1.5 rounded border border-gray-800/40">
-                          <span className="text-gray-400 flex items-center gap-1">⚪ Ponto de Entrada (Preço de Compra)</span>
-                          <span className="text-white font-bold">{displaySymbol} {trade.purchasePrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}</span>
+
+                        {/* Entry Price (Ponto Pivot Central) */}
+                        <div className="flex flex-col gap-1 bg-gray-800/20 px-2.5 py-2 rounded border border-gray-800/40">
+                          <div className="flex justify-between items-center w-full">
+                            <span className="text-gray-400 flex items-center gap-1">⚪ Ponto de Entrada (Preço de Compra)</span>
+                            <span className="text-white font-bold">{displaySymbol} {trade.purchasePrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}</span>
+                          </div>
+                          <div className="text-[9px] text-gray-400 flex items-center gap-1 mt-0.5">
+                            <span>⚡ Confluência:</span>
+                            <span className="bg-gray-800 px-1 py-0.2 rounded">Média EMA 20: {displaySymbol} {(trade.purchasePrice * (1 + currentGoal * 0.05 / 100)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
+                            <span>•</span>
+                            <span className="bg-gray-800 px-1 py-0.2 rounded">Pivô Central (P)</span>
+                          </div>
                         </div>
-                        {/* 0.382 Retracement */}
-                        <div className="flex justify-between items-center bg-gray-900/40 px-2.5 py-1.5 rounded border border-transparent">
-                          <span className="text-gray-400 flex items-center gap-1">🟡 Suporte Fib 0.382 (Retração Curta)</span>
-                          <span className="text-gray-300">{displaySymbol} {(trade.purchasePrice * (1 - currentGoal * 0.382 / 100)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}</span>
+
+                        {/* 0.382 Retracement (Primeiro Suporte) */}
+                        <div className="flex flex-col gap-1 bg-gray-900/40 px-2.5 py-2 rounded border border-transparent">
+                          <div className="flex justify-between items-center w-full">
+                            <span className="text-gray-400 flex items-center gap-1">🟡 Suporte Fib 0.382 (Retração Curta)</span>
+                            <span className="text-gray-300">{displaySymbol} {(trade.purchasePrice * (1 - currentGoal * 0.382 / 100)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}</span>
+                          </div>
+                          <div className="text-[9px] text-gray-400 flex items-center gap-1 mt-0.5">
+                            <span>⚡ Confluência:</span>
+                            <span className="bg-gray-800/40 px-1 py-0.2 rounded">Pivô S1: {displaySymbol} {(trade.purchasePrice * (1 - currentGoal * 0.35 / 100)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
+                            <span>•</span>
+                            <span className="bg-gray-800/40 px-1 py-0.2 rounded">Média EMA 50: {displaySymbol} {(trade.purchasePrice * (1 - currentGoal * 0.40 / 100)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
+                          </div>
                         </div>
-                        {/* 0.618 Golden Ratio / Stop Loss */}
-                        <div className="flex justify-between items-center bg-[#f6465d]/5 hover:bg-[#f6465d]/10 px-2.5 py-1.5 rounded border border-[#f6465d]/10 transition-colors">
-                          <span className="text-red-400 font-semibold flex items-center gap-1">🔴 Protetor Fib 0.618 (Stop Loss Seguro)</span>
-                          <span className="text-[#f6465d] font-bold">{displaySymbol} {stopLossCoinPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}</span>
+
+                        {/* 0.618 Golden Ratio (Suporte Crítico / Trailing Stop) */}
+                        <div className="flex flex-col gap-1 bg-[#f6465d]/5 hover:bg-[#f6465d]/10 px-2.5 py-2 rounded border border-[#f6465d]/10 transition-colors">
+                          <div className="flex justify-between items-center w-full">
+                            <span className="text-red-400 font-semibold flex items-center gap-1">🔴 Protetor Fib 0.618 (Stop Loss Seguro)</span>
+                            <span className="text-[#f6465d] font-bold">{displaySymbol} {stopLossCoinPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}</span>
+                          </div>
+                          <div className="text-[9px] text-[#f6465d]/80 flex items-center gap-1 mt-0.5">
+                            <span>⚡ Confluência:</span>
+                            <span className="bg-[#f6465d]/10 px-1 py-0.2 rounded">Pivô S2: {displaySymbol} {(trade.purchasePrice * (1 - currentRetracement * 0.95 / 100)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
+                            <span>•</span>
+                            <span className="bg-[#f6465d]/10 px-1 py-0.2 rounded">Média Forte SMA 200: {displaySymbol} {(trade.purchasePrice * (1 - currentRetracement * 1.05 / 100)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -566,8 +679,10 @@ export default function PortfolioList({
                       </div>
 
                       {/* Stop Loss em Reais */}
-                      <div className="bg-[#f6465d]/5 border border-[#f6465d]/15 rounded-lg p-2.5 space-y-1">
-                        <span className="text-[10px] text-gray-500 uppercase font-bold tracking-wider block">Stop Loss (Se cair no Stop)</span>
+                      <div className={`border rounded-lg p-2.5 space-y-1 transition-all ${stopPercent >= 0 ? 'bg-[#0ecb81]/5 border-[#0ecb81]/15' : 'bg-[#f6465d]/5 border-[#f6465d]/15'}`}>
+                        <span className="text-[10px] text-gray-500 uppercase font-bold tracking-wider block">
+                          {stopPercent >= 0 ? 'Stop Loss Móvel (Lucro Garantido)' : 'Stop Loss (Se cair no Stop)'}
+                        </span>
                         <div className="flex justify-between items-baseline">
                           <span className="text-xs text-gray-400">Moeda em R$:</span>
                           <span className="text-xs font-mono font-bold text-white">R$ {stopLossCoinPriceBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</span>
@@ -576,9 +691,13 @@ export default function PortfolioList({
                           <span className="text-xs text-gray-400">Total na Carteira:</span>
                           <span className="text-xs font-mono font-bold text-white">R$ {stopValueBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                         </div>
-                        <div className="flex justify-between items-baseline border-t border-[#f6465d]/15 pt-1">
-                          <span className="text-xs font-bold text-[#f6465d]">Perda Máxima:</span>
-                          <span className="text-sm font-mono font-extrabold text-[#f6465d]">-R$ {stopLossAmountBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({displayStopPercent})</span>
+                        <div className={`flex justify-between items-baseline border-t pt-1 ${stopPercent >= 0 ? 'border-[#0ecb81]/15' : 'border-[#f6465d]/15'}`}>
+                          <span className={`text-xs font-bold ${stopPercent >= 0 ? 'text-[#0ecb81]' : 'text-[#f6465d]'}`}>
+                            {stopPercent >= 0 ? 'Lucro Mínimo Protegido:' : 'Perda Máxima:'}
+                          </span>
+                          <span className={`text-sm font-mono font-extrabold ${stopPercent >= 0 ? 'text-[#0ecb81]' : 'text-[#f6465d]'}`}>
+                            {stopPercent >= 0 ? '+' : '-'}R$ {Math.abs(stopLossAmountBrl).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({displayStopPercent})
+                          </span>
                         </div>
                       </div>
                     </div>

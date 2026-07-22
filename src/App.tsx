@@ -272,6 +272,7 @@ export default function App() {
               updatedTrade.purchasePriceInUsdt = updatedTrade.purchasePrice / rate;
               // Normalize the main purchasePrice to be in USDT to match the trade's currency!
               updatedTrade.purchasePrice = updatedTrade.purchasePriceInUsdt;
+              updatedTrade.totalInvested = updatedTrade.purchasePrice * updatedTrade.amount;
             } else {
               // Normal USDT purchase price
               updatedTrade.purchasePriceInUsdt = updatedTrade.purchasePrice;
@@ -281,6 +282,44 @@ export default function App() {
             // currency === 'BRL'
             updatedTrade.purchasePriceInBrl = updatedTrade.purchasePrice;
             updatedTrade.purchasePriceInUsdt = updatedTrade.purchasePrice / rate;
+          }
+        }
+
+        // 3. Force-heal if purchasePrice is in BRL but currency is USDT (e.g., SOLUSDT bought at 397 USD instead of 77 USD)
+        if (updatedTrade.currency === 'USDT') {
+          const livePriceEstimate = marketPrices[updatedTrade.symbol] || updatedTrade.currentPrice || 100;
+          if (updatedTrade.purchasePrice / livePriceEstimate > 3) {
+            changed = true;
+            const rate = usdtBrl || 5.10;
+            updatedTrade.purchasePriceInBrl = updatedTrade.purchasePrice;
+            updatedTrade.purchasePriceInUsdt = updatedTrade.purchasePrice / rate;
+            updatedTrade.purchasePrice = updatedTrade.purchasePriceInUsdt;
+            updatedTrade.totalInvested = updatedTrade.purchasePrice * updatedTrade.amount;
+            // Recalculate stop loss right away to avoid wrong stop triggers
+            const currentRetracement = updatedTrade.retracementPercent !== undefined ? updatedTrade.retracementPercent : (goalPercent || 5);
+            const initialStop = updatedTrade.purchasePrice * (1 - currentRetracement / 100);
+            const trailingStop = (marketPrices[updatedTrade.symbol] || updatedTrade.currentPrice) * (1 - currentRetracement / 100);
+            updatedTrade.maxPriceReached = Math.max(updatedTrade.purchasePrice, marketPrices[updatedTrade.symbol] || updatedTrade.currentPrice);
+            updatedTrade.aiStopLossPrice = Math.max(initialStop, trailingStop);
+          }
+        }
+
+        // 4. Force-heal if purchasePrice is in USD but currency is BRL
+        if (updatedTrade.currency === 'BRL') {
+          const livePriceEstimate = marketPrices[updatedTrade.symbol] || updatedTrade.currentPrice || 397;
+          if (updatedTrade.purchasePrice / livePriceEstimate < 0.3) {
+            changed = true;
+            const rate = usdtBrl || 5.10;
+            updatedTrade.purchasePriceInUsdt = updatedTrade.purchasePrice;
+            updatedTrade.purchasePriceInBrl = updatedTrade.purchasePrice * rate;
+            updatedTrade.purchasePrice = updatedTrade.purchasePriceInBrl;
+            updatedTrade.totalInvested = updatedTrade.purchasePrice * updatedTrade.amount;
+            // Recalculate stop loss
+            const currentRetracement = updatedTrade.retracementPercent !== undefined ? updatedTrade.retracementPercent : (goalPercent || 5);
+            const initialStop = updatedTrade.purchasePrice * (1 - currentRetracement / 100);
+            const trailingStop = (marketPrices[updatedTrade.symbol] || updatedTrade.currentPrice) * (1 - currentRetracement / 100);
+            updatedTrade.maxPriceReached = Math.max(updatedTrade.purchasePrice, marketPrices[updatedTrade.symbol] || updatedTrade.currentPrice);
+            updatedTrade.aiStopLossPrice = Math.max(initialStop, trailingStop);
           }
         }
         
@@ -477,9 +516,25 @@ export default function App() {
         prevTrades.map(trade => {
           if (trade.isManualPrice) return trade;
           const freshPrice = prices[trade.symbol] || trade.currentPrice;
+          
+          // Track highest price reached since purchase
+          const oldMax = trade.maxPriceReached || trade.purchasePrice;
+          const newMax = Math.max(oldMax, freshPrice);
+          
+          const currentRetracement = trade.retracementPercent !== undefined ? trade.retracementPercent : (goalPercent || 5);
+          const initialStop = trade.purchasePrice * (1 - currentRetracement / 100);
+          const trailingStop = newMax * (1 - currentRetracement / 100);
+          const calculatedStop = Math.max(initialStop, trailingStop);
+          
+          const newStopLossPrice = trade.aiStopLossPrice 
+            ? Math.max(trade.aiStopLossPrice, calculatedStop)
+            : calculatedStop;
+
           return {
             ...trade,
-            currentPrice: freshPrice
+            currentPrice: freshPrice,
+            maxPriceReached: newMax,
+            aiStopLossPrice: newStopLossPrice
           };
         })
       );
@@ -576,6 +631,8 @@ export default function App() {
 
       setRecommendations(recs);
 
+      const logsToPush: string[] = [];
+
       // Now generate individual portfolio analysis for active trades
       setTrades(prevTrades => 
         prevTrades.map(trade => {
@@ -585,36 +642,72 @@ export default function App() {
           let recommendation: 'MANTER' | 'VENDER' | 'VENDER (STOP)' | 'COMPRAR MAIS' = 'MANTER';
           let reasoning = '';
           const targetPrice = trade.purchasePrice * (1 + goalPercent / 100);
-          const stopLossPrice = trade.purchasePrice * 0.95;
+
+          const currentRetracement = trade.retracementPercent !== undefined ? trade.retracementPercent : (goalPercent || 5);
+
+          // Track highest price reached since purchase
+          const oldMax = trade.maxPriceReached || trade.purchasePrice;
+          const newMax = Math.max(oldMax, liveP);
+
+          // Trailing Stop Loss calculation
+          const initialStop = trade.purchasePrice * (1 - currentRetracement / 100);
+          const trailingStop = newMax * (1 - currentRetracement / 100);
+          const calculatedStop = Math.max(initialStop, trailingStop);
+          
+          // Ensure stop loss only climbs
+          const newStopLossPrice = trade.aiStopLossPrice 
+            ? Math.max(trade.aiStopLossPrice, calculatedStop)
+            : calculatedStop;
+
+          const previousStop = trade.aiStopLossPrice || initialStop;
+          if (newStopLossPrice > previousStop) {
+            const sym = trade.currency === 'USDT' ? '$' : 'R$';
+            logsToPush.push(`📈 Stop Loss de ${trade.symbol} subiu automaticamente de ${sym} ${previousStop.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} para ${sym} ${newStopLossPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} para proteger seus lucros!`);
+          }
+
+          const isStopLossHit = liveP <= newStopLossPrice;
 
           if (pnlPercent >= goalPercent) {
             recommendation = 'VENDER';
-            reasoning = `Meta de Lucro de ${goalPercent}% Alcançada! O preço atual da Binance (${liveP.toFixed(4)}) está gerando lucro líquido de +${pnlPercent.toFixed(2)}% em relação ao seu preço de compra (${trade.purchasePrice.toFixed(4)}). Sugerimos realizar o lucro agora.`;
-          } else if (pnlPercent <= -6) {
+            reasoning = `Meta de Lucro de ${goalPercent}% Alcançada! O preço atual da Binance (${liveP.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ${trade.currency}) atingiu ou superou seu alvo. Sugerimos realizar o lucro de +${pnlPercent.toFixed(2)}% agora!`;
+          } else if (isStopLossHit) {
             recommendation = 'VENDER (STOP)';
-            reasoning = `Limite de Risco Ultrapassado: A queda atual de ${pnlPercent.toFixed(2)}% rompeu o suporte estipulado. Sugerimos acionar o Stop Loss em ${stopLossPrice.toFixed(4)} para resguardar o saldo em caixa disponível.`;
-          } else if (pnlPercent <= -2 && pnlPercent > -6) {
+            if (newStopLossPrice > trade.purchasePrice) {
+              const profitSecuredPercent = ((newStopLossPrice - trade.purchasePrice) / trade.purchasePrice) * 100;
+              reasoning = `Stop Loss Móvel Acionado (Lucro Protegido!): O preço recuou de topos anteriores e atingiu seu gatilho de proteção em ${newStopLossPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}. Sugerimos vender para garantir lucro mínimo de aproximadamente +${profitSecuredPercent.toFixed(2)}%.`;
+            } else {
+              reasoning = `Stop Loss Acionado: O preço caiu abaixo do limite de suporte técnico em ${newStopLossPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} (queda de ${Math.abs(pnlPercent).toFixed(2)}%). Sugerimos vender a posição para resguardar seu saldo e evitar maiores perdas.`;
+            }
+          } else if (pnlPercent <= -2 && pnlPercent > -currentRetracement) {
             recommendation = 'COMPRAR MAIS';
-            reasoning = `Moeda recuou ${Math.abs(pnlPercent).toFixed(2)}% para zona de forte suporte técnico. Ótimo ponto estratégico para acumulação de preço médio se houver saldo livre em caixa para reduzir o custo médio de entrada.`;
+            reasoning = `Moeda recuou ${Math.abs(pnlPercent).toFixed(2)}% para zona de suporte técnico. Ótimo ponto estratégico para acumulação de preço médio se houver saldo livre em caixa para reduzir o custo médio de entrada.`;
           } else {
             recommendation = 'MANTER';
-            reasoning = `Operação estável oscilando em ${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toFixed(2)}% dentro do canal de alta esperado. O viés diário continua favorável. Recomendamos aguardar a progressão natural rumo ao alvo de ${targetPrice.toFixed(4)}.`;
+            if (newStopLossPrice > trade.purchasePrice) {
+              const profitSecuredPercent = ((newStopLossPrice - trade.purchasePrice) / trade.purchasePrice) * 100;
+              reasoning = `Operação evoluindo com sucesso! Preço em alta de +${pnlPercent.toFixed(2)}%. Seu Stop Loss subiu automaticamente para ${newStopLossPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}, garantindo um lucro mínimo de +${profitSecuredPercent.toFixed(2)}% mesmo em caso de queda repentina!`;
+            } else {
+              reasoning = `Operação estável oscilando em ${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toFixed(2)}% dentro do canal de alta esperado. O viés de mercado continua favorável. Recomendamos manter a posição aguardando a progressão rumo ao alvo de ${targetPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}.`;
+            }
           }
 
           const changed = trade.aiRecommendation !== recommendation;
           if (changed) {
-            pushLog(`🔔 Sinal de alerta para ${trade.symbol} atualizado para: ${recommendation}!`);
+            logsToPush.push(`🔔 Sinal de alerta para ${trade.symbol} atualizado para: ${recommendation}!`);
           }
 
           return {
             ...trade,
+            maxPriceReached: newMax,
             aiRecommendation: recommendation,
             aiReasoning: reasoning,
             aiTargetPrice: targetPrice,
-            aiStopLossPrice: stopLossPrice
+            aiStopLossPrice: newStopLossPrice
           };
         })
       );
+
+      logsToPush.forEach(log => pushLog(log));
 
       setLastAnalysisTime(new Date());
       setCountdown(1800); // Reset timer window
@@ -635,11 +728,16 @@ export default function App() {
     cleanSymbol = base + newTradeData.currency;
 
     const livePrice = marketPrices[cleanSymbol] || newTradeData.purchasePrice;
+    const initialRetracement = goalPercent || 5;
+    const initialStopPrice = newTradeData.purchasePrice * (1 - initialRetracement / 100);
     const newTrade: Trade = {
       ...newTradeData,
       symbol: cleanSymbol,
       id: `trade-${Date.now()}`,
-      currentPrice: livePrice
+      currentPrice: livePrice,
+      maxPriceReached: Math.max(newTradeData.purchasePrice, livePrice),
+      aiStopLossPrice: initialStopPrice,
+      retracementPercent: initialRetracement
     };
 
     setTrades(prev => [newTrade, ...prev]);
