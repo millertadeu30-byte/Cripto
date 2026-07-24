@@ -104,8 +104,12 @@ export default function ProfitGoalConfigurator({
     }
 
     // Determine the easiest asset to reach this goal based on recommendations (positive momentum + high estimated profit)
-    let easiestAssetToGoal = "SOLUSDT (Solana)";
-    let easiestAssetReason = "A Solana apresenta a melhor liquidez combinada com momentum de alta nas últimas horas, facilitando o ganho rápido de metas pequenas.";
+    let easiestAssetToGoal = recommendations.length > 0
+      ? `${recommendations[0].symbol.replace('USDT', '').replace('BRL', '')} (${recommendations[0].coinName})`
+      : "BTCUSDT (Bitcoin)";
+    let easiestAssetReason = recommendations.length > 0
+      ? `Recomendamos a moeda ${recommendations[0].coinName} (${recommendations[0].symbol.replace('USDT', '')}). O algoritmo detectou um potencial de +${recommendations[0].estimatedProfit.toFixed(1)}% em ${recommendations[0].timeframe}.`
+      : "O Bitcoin apresenta excelente liquidez e estabilidade de mercado para alcançar metas projetadas.";
 
     if (recommendations.length > 0) {
       // Find the recommendation with the highest estimatedProfit but within reasonable risk

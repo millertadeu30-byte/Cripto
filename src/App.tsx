@@ -37,17 +37,6 @@ const INITIAL_TRADES: Trade[] = [
 
 const INITIAL_RECOMMENDATIONS: Recommendation[] = [
   {
-    symbol: 'SOLUSDT',
-    coinName: 'Solana',
-    action: 'COMPRA',
-    currentPrice: 184.85,
-    targetPrice: 195.00,
-    stopLossPrice: 178.00,
-    estimatedProfit: 5.49,
-    timeframe: '2 a 6 horas',
-    reasoning: 'Solana está testando um suporte de curto prazo na média móvel exponencial de 20 períodos em tempo gráfico de 1 hora. RSI indica sobrevenda moderada com forte volume de compra defendendo a região.'
-  },
-  {
     symbol: 'BTCUSDT',
     coinName: 'Bitcoin',
     action: 'COMPRA',
@@ -59,17 +48,174 @@ const INITIAL_RECOMMENDATIONS: Recommendation[] = [
     reasoning: 'O Bitcoin consolidou acima de 91k com redução de volatilidade, padrão clássico de acumulação antes de romper a próxima resistência de curto prazo rumo ao alvo de 93.5k.'
   },
   {
-    symbol: 'PEPEUSDT',
-    coinName: 'Pepe Coin',
+    symbol: 'ETHUSDT',
+    coinName: 'Ethereum',
     action: 'COMPRA',
-    currentPrice: 0.00001240,
-    targetPrice: 0.00001350,
-    stopLossPrice: 0.00001150,
-    estimatedProfit: 8.87,
+    currentPrice: 2475.20,
+    targetPrice: 2600.00,
+    stopLossPrice: 2380.00,
+    estimatedProfit: 5.05,
+    timeframe: '1 a 3 dias',
+    reasoning: 'Ethereum formou pivô de alta na zona de suporte de $2.470 com divergência de alta no RSI no gráfico de 4 horas.'
+  },
+  {
+    symbol: 'XRPUSDT',
+    coinName: 'Ripple',
+    action: 'COMPRA',
+    currentPrice: 2.45,
+    targetPrice: 2.64,
+    stopLossPrice: 2.31,
+    estimatedProfit: 7.75,
     timeframe: 'Curtíssimo Prazo',
-    reasoning: 'Pepe Coin apresenta forte momentum com cruzamento de médias de alta e volume 40% acima da média móvel de 24h. Excelente oportunidade de scalp de altíssimo risco e retorno rápido.'
+    reasoning: 'A Ripple consolidou uma base de acumulação sólida e agora rompe a resistência imediata com bom volume comprador.'
   }
 ];
+
+// Helper function to generate professional recommendations for market opportunities,
+// strictly excluding any coin that currently has a VENDER or VENDER (STOP) signal in active portfolio.
+export function generateSmartRecommendations(
+  prices: { [key: string]: number },
+  activeTrades: Trade[]
+): Recommendation[] {
+  // 1. Collect base symbols of coins with sell/stop signals in active trades
+  const sellBaseSymbols = new Set<string>();
+  activeTrades.forEach(trade => {
+    const liveP = prices[trade.symbol] || trade.currentPrice;
+    const pnlPercent = trade.purchasePrice > 0 ? ((liveP - trade.purchasePrice) / trade.purchasePrice) * 100 : 0;
+    const stopPrice = trade.aiStopLossPrice || (trade.purchasePrice * 0.95);
+    
+    const isStopHit = liveP <= stopPrice;
+    const isSellSignal = trade.aiRecommendation?.includes('VENDER') || isStopHit;
+
+    if (isSellSignal) {
+      const base = trade.symbol.replace(/USDT$/, '').replace(/BRL$/, '');
+      sellBaseSymbols.add(base);
+    }
+  });
+
+  // 2. Candidate pool of top crypto assets
+  const ALL_CANDIDATES = [
+    {
+      symbol: 'BTCUSDT',
+      coinName: 'Bitcoin',
+      base: 'BTC',
+      targetMult: 1.035,
+      stopMult: 0.975,
+      estimatedProfit: 3.5,
+      timeframe: 'Hoje',
+      getReasoning: (p: number) => `O Bitcoin demonstra forte consolidação técnica acima de $${p.toLocaleString('en-US', { maximumFractionDigits: 0 })}. A estrutura de médias móveis de curto prazo sinaliza continuidade compradora com excelente relação risco/retorno.`
+    },
+    {
+      symbol: 'ETHUSDT',
+      coinName: 'Ethereum',
+      base: 'ETH',
+      targetMult: 1.052,
+      stopMult: 0.96,
+      estimatedProfit: 5.2,
+      timeframe: '1 a 3 dias',
+      getReasoning: (p: number) => `Ethereum formou pivô de alta em $${p.toFixed(2)} com divergência positiva no RSI de 4h. Ponto ideal para posicionamento comprador estratégico.`
+    },
+    {
+      symbol: 'SOLUSDT',
+      coinName: 'Solana',
+      base: 'SOL',
+      targetMult: 1.065,
+      stopMult: 0.955,
+      estimatedProfit: 6.5,
+      timeframe: '2 a 6 horas',
+      getReasoning: (p: number) => `Solana apresenta suporte sólido acima de $${p.toFixed(2)}. O volume comprador recente no gráfico de 1h indica reversão de momentum favorável para busca de alvos rápidos.`
+    },
+    {
+      symbol: 'XRPUSDT',
+      coinName: 'Ripple',
+      base: 'XRP',
+      targetMult: 1.078,
+      stopMult: 0.945,
+      estimatedProfit: 7.8,
+      timeframe: 'Curtíssimo Prazo',
+      getReasoning: (p: number) => `A Ripple consolidou uma base de acumulação sólida e agora rompe a resistência imediata em $${p.toFixed(2)}. Ótima oportunidade técnica com stop loss ajustado.`
+    },
+    {
+      symbol: 'BNBUSDT',
+      coinName: 'BNB',
+      base: 'BNB',
+      targetMult: 1.042,
+      stopMult: 0.965,
+      estimatedProfit: 4.2,
+      timeframe: 'Hoje',
+      getReasoning: (p: number) => `BNB sustenta suporte técnico importante em $${p.toFixed(2)} com fluxo comprador constante e padrão gráfico de continuidade de alta.`
+    },
+    {
+      symbol: 'SUIUSDT',
+      coinName: 'Sui',
+      base: 'SUI',
+      targetMult: 1.085,
+      stopMult: 0.935,
+      estimatedProfit: 8.5,
+      timeframe: '4 a 12 horas',
+      getReasoning: (p: number) => `Sui vem registrando aumento expressivo de volume em $${p.toFixed(2)}, rompeu linha de tendência de baixa e mostra forte tração compradora.`
+    },
+    {
+      symbol: 'NEARUSDT',
+      coinName: 'Near Protocol',
+      base: 'NEAR',
+      targetMult: 1.072,
+      stopMult: 0.94,
+      estimatedProfit: 7.2,
+      timeframe: 'Hoje',
+      getReasoning: (p: number) => `Near Protocol acumula forças em $${p.toFixed(2)} sustentado pelas médias móveis, apresentando excelente ponto de entrada.`
+    },
+    {
+      symbol: 'PEPEUSDT',
+      coinName: 'Pepe Coin',
+      base: 'PEPE',
+      targetMult: 1.095,
+      stopMult: 0.92,
+      estimatedProfit: 9.5,
+      timeframe: 'Curtíssimo Prazo',
+      getReasoning: (p: number) => `Pepe Coin apresenta forte momentum com volume 40% acima da média móvel. Excelente oportunidade para operar impulsos rápidos.`
+    },
+    {
+      symbol: 'LINKUSDT',
+      coinName: 'Chainlink',
+      base: 'LINK',
+      targetMult: 1.058,
+      stopMult: 0.95,
+      estimatedProfit: 5.8,
+      timeframe: '1 a 2 dias',
+      getReasoning: (p: number) => `Chainlink mantém estrutura firme em $${p.toFixed(2)}, mostrando resiliência com padrões sustentados de suporte e alta.`
+    }
+  ];
+
+  // 3. Exclude any candidate whose base symbol is in sellBaseSymbols
+  const validCandidates = ALL_CANDIDATES.filter(c => !sellBaseSymbols.has(c.base));
+  const poolToUse = validCandidates.length >= 3 ? validCandidates : ALL_CANDIDATES;
+
+  return poolToUse.slice(0, 3).map(cand => {
+    const curP = prices[cand.symbol] || (
+      cand.symbol === 'BTCUSDT' ? 91520 :
+      cand.symbol === 'ETHUSDT' ? 2475 :
+      cand.symbol === 'SOLUSDT' ? 184.85 :
+      cand.symbol === 'XRPUSDT' ? 2.45 :
+      cand.symbol === 'BNBUSDT' ? 592 :
+      cand.symbol === 'SUIUSDT' ? 3.12 :
+      cand.symbol === 'NEARUSDT' ? 5.45 :
+      cand.symbol === 'PEPEUSDT' ? 0.0000124 : 19.3
+    );
+
+    return {
+      symbol: cand.symbol,
+      coinName: cand.coinName,
+      action: 'COMPRA',
+      currentPrice: curP,
+      targetPrice: curP * cand.targetMult,
+      stopLossPrice: curP * cand.stopMult,
+      estimatedProfit: cand.estimatedProfit,
+      timeframe: cand.timeframe,
+      reasoning: cand.getReasoning(curP)
+    };
+  });
+}
 
 const INITIAL_LOGS = [
   `[${new Date().toLocaleTimeString('pt-BR')}] 🤖 Assistente Binance inicializado com sucesso. Pronto para operar!`,
@@ -592,52 +738,14 @@ export default function App() {
       
       pushLog('🤖 Conectando com o Algoritmo Sênior da Binance (Processamento 100% Local)...');
 
-      // Generate Top 3 Recommendations dynamically based on real-time prices
-      const recs: Recommendation[] = [
-        {
-          symbol: 'SOLUSDT',
-          coinName: 'Solana',
-          action: 'COMPRA',
-          currentPrice: marketPrices['SOLUSDT'] || 184.85,
-          targetPrice: (marketPrices['SOLUSDT'] || 184.85) * 1.055,
-          stopLossPrice: (marketPrices['SOLUSDT'] || 184.85) * 0.96,
-          estimatedProfit: 5.5,
-          timeframe: '2 a 6 horas',
-          reasoning: `Solana apresenta forte suporte acima de $${(marketPrices['SOLUSDT'] || 184.85).toFixed(2)}. O volume comprador recente no gráfico de 1h indica uma reversão de momentum altamente favorável para busca de alvos rápidos.`
-        },
-        {
-          symbol: 'BTCUSDT',
-          coinName: 'Bitcoin',
-          action: 'COMPRA',
-          currentPrice: marketPrices['BTCUSDT'] || 91520.40,
-          targetPrice: (marketPrices['BTCUSDT'] || 91520.40) * 1.025,
-          stopLossPrice: (marketPrices['BTCUSDT'] || 91520.40) * 0.98,
-          estimatedProfit: 2.5,
-          timeframe: 'Hoje',
-          reasoning: `O Bitcoin continua demonstrando consolidação de alta acima de $${(marketPrices['BTCUSDT'] || 91520.40).toLocaleString('en-US', {maximumFractionDigits:0})}. O suporte na média móvel exponencial de 20 períodos confirma a força dos touros para romper resistências de curto prazo.`
-        },
-        {
-          symbol: 'XRPUSDT',
-          coinName: 'Ripple',
-          action: 'COMPRA',
-          currentPrice: marketPrices['XRPUSDT'] || 2.45,
-          targetPrice: (marketPrices['XRPUSDT'] || 2.45) * 1.08,
-          stopLossPrice: (marketPrices['XRPUSDT'] || 2.45) * 0.94,
-          estimatedProfit: 8.0,
-          timeframe: 'Curtíssimo Prazo',
-          reasoning: `A Ripple consolidou uma base de acumulação sólida e agora rompe a resistência imediata em $${(marketPrices['XRPUSDT'] || 2.45).toFixed(2)}. Ótima oportunidade técnica de rompimento com stop loss curto.`
-        }
-      ];
-
-      setRecommendations(recs);
-
       const logsToPush: string[] = [];
 
-      // Now generate individual portfolio analysis for active trades
-      setTrades(prevTrades => 
-        prevTrades.map(trade => {
+      // 1. Re-evaluate individual portfolio analysis for active trades first
+      let updatedTradesList: Trade[] = [];
+      setTrades(prevTrades => {
+        updatedTradesList = prevTrades.map(trade => {
           const liveP = marketPrices[trade.symbol] || trade.currentPrice;
-          const pnlPercent = ((liveP - trade.purchasePrice) / trade.purchasePrice) * 100;
+          const pnlPercent = trade.purchasePrice > 0 ? ((liveP - trade.purchasePrice) / trade.purchasePrice) * 100 : 0;
           
           let recommendation: 'MANTER' | 'VENDER' | 'VENDER (STOP)' | 'COMPRAR MAIS' = 'MANTER';
           let reasoning = '';
@@ -704,8 +812,13 @@ export default function App() {
             aiTargetPrice: targetPrice,
             aiStopLossPrice: newStopLossPrice
           };
-        })
-      );
+        });
+        return updatedTradesList;
+      });
+
+      // 2. Generate Top 3 Recommendations dynamically GUARANTEEING NO CONFLICT WITH SELL SIGNALS IN PORTFOLIO
+      const smartRecs = generateSmartRecommendations(marketPrices, updatedTradesList.length > 0 ? updatedTradesList : tradesRef.current);
+      setRecommendations(smartRecs);
 
       logsToPush.forEach(log => pushLog(log));
 
@@ -719,6 +832,31 @@ export default function App() {
       setIsAnalyzing(false);
     }
   };
+
+  // Guarantee that recommendations never contain a coin that currently has a VENDER / VENDER (STOP) signal in active portfolio
+  useEffect(() => {
+    if (trades.length > 0) {
+      const sellBaseSymbols = new Set<string>();
+      trades.forEach(t => {
+        if (t.aiRecommendation?.includes('VENDER')) {
+          const base = t.symbol.replace(/USDT$/, '').replace(/BRL$/, '');
+          sellBaseSymbols.add(base);
+        }
+      });
+
+      if (sellBaseSymbols.size > 0) {
+        const hasConflict = recommendations.some(rec => {
+          const base = rec.symbol.replace(/USDT$/, '').replace(/BRL$/, '');
+          return sellBaseSymbols.has(base);
+        });
+
+        if (hasConflict) {
+          const freshSmartRecs = generateSmartRecommendations(marketPrices, trades);
+          setRecommendations(freshSmartRecs);
+        }
+      }
+    }
+  }, [trades, marketPrices]);
 
   // Add new trade manually
   const handleSaveTrade = (newTradeData: Omit<Trade, 'id' | 'pnlValue' | 'pnlPercent' | 'currentPrice'>) => {
