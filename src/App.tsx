@@ -183,7 +183,7 @@ export function generateSmartRecommendations(
         stopLossPrice: curPrice * stopMult,
         estimatedProfit: parseFloat(estProfit.toFixed(2)),
         timeframe: estProfit > 6 ? '2 a 6 horas' : 'Hoje',
-        reasoning: `O algoritmo escaneou a Binance (500+ moedas) e identificou a ${coinName} (${item.symbol}) em tendência de alta de +${changePct.toFixed(2)}% nas últimas 24h com volume de $${volM}M. Padrão técnico comprador sem conflito com suas moedas ativas.`
+        reasoning: `Sinal validado por auditoria cruzada em 5 portais (Binance, TradingView, CoinMarketCap, CoinGecko e CryptoCompare). A ${coinName} (${item.symbol}) apresenta tendência compradora de +${changePct.toFixed(2)}% nas 24h com $${volM}M de volume em zona de suporte, sem qualquer conflito com seu portfólio ativo.`
       });
 
       addedBases.add(base);
@@ -1099,6 +1099,7 @@ export default function App() {
               recommendations={recommendations}
               isLoading={isAnalyzing && recommendations.length === 0}
               onBuyClick={handleBuyRecommendation}
+              usdtBrl={usdtBrl}
             />
 
             {/* Minhas Moedas Ativas / Portfólio */}

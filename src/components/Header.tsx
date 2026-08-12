@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Eye, EyeOff, PlusCircle, RefreshCw, AlertCircle, BookOpen, TrendingUp, HelpCircle, Pencil, Check, X } from 'lucide-react';
+import { Eye, EyeOff, PlusCircle, RefreshCw, AlertCircle, BookOpen, TrendingUp, HelpCircle, Pencil, Check, X, Calculator, Copy, ClipboardCheck, Sparkles } from 'lucide-react';
 import { Trade } from '../types';
 
 interface HeaderProps {
@@ -40,6 +40,13 @@ export default function Header({
   const [hideBalances, setHideBalances] = useState(false);
   const [activeTab, setActiveTab] = useState<'geral' | 'spot' | 'alpha' | 'fundos'>('spot');
   const [showCurrencyDropdown, setShowCurrencyDropdown] = useState(false);
+
+  // Quick OCO Calculator states (Foto 1 Requirement)
+  const [calcPrice, setCalcPrice] = useState<string>('0.0467');
+  const [calcGainPct, setCalcGainPct] = useState<string>('5.5');
+  const [calcLossPct, setCalcLossPct] = useState<string>('3.0');
+  const [calcInvestAmount, setCalcInvestAmount] = useState<string>('100');
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   // Cash balance inline editor states
   const [isEditingCash, setIsEditingCash] = useState(false);
@@ -90,6 +97,37 @@ export default function Header({
     try {
       localStorage.setItem('binance_assistant_show_value_tip', 'false');
     } catch (e) {}
+  };
+
+  // Calculation logic for Quick OCO Calculator
+  const parseVal = (str: string) => parseFloat(str.replace(',', '.')) || 0;
+  const numEntryPrice = parseVal(calcPrice);
+  const numGainPct = parseVal(calcGainPct);
+  const numLossPct = parseVal(calcLossPct);
+  const numInvestAmount = parseVal(calcInvestAmount);
+
+  const calcTargetVal = numEntryPrice > 0 ? numEntryPrice * (1 + numGainPct / 100) : 0;
+  const calcStopVal = numEntryPrice > 0 ? numEntryPrice * (1 - numLossPct / 100) : 0;
+  const calcCoinQty = numEntryPrice > 0 && numInvestAmount > 0 ? numInvestAmount / numEntryPrice : 0;
+  const calcGainMoney = numInvestAmount * (numGainPct / 100);
+  const calcLossMoney = numInvestAmount * (numLossPct / 100);
+
+  const formatHighPrec = (num: number) => {
+    if (num === 0) return '0.00';
+    const absVal = Math.abs(num);
+    if (absVal < 0.0001) return num.toFixed(8);
+    if (absVal < 1) return num.toFixed(6);
+    if (absVal < 100) return num.toFixed(4);
+    return num.toFixed(2);
+  };
+
+  const handleCopyText = (textToCopy: string, keyName: string) => {
+    if (!textToCopy) return;
+    navigator.clipboard.writeText(textToCopy);
+    setCopiedKey(keyName);
+    setTimeout(() => {
+      setCopiedKey(null);
+    }, 2000);
   };
 
   // Compute total active balance in BRL
@@ -163,45 +201,7 @@ export default function Header({
             <p className="text-[9px] text-gray-400">Consultor Sênior de Sinais Spot</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-[#0ecb81] animate-pulse"></span>
-          <span className="text-[9px] text-gray-400 font-mono font-semibold">CONEXÃO DIRECTA</span>
-        </div>
-      </div>
-
-      {/* Top Bar Tabs - Replicating Binance Tab Bar */}
-      <div className="flex justify-between items-center px-6 py-3 border-b border-gray-900">
-        <div className="flex gap-6 text-sm font-medium">
-          <button
-            id="tab-geral-btn"
-            onClick={() => setActiveTab('geral')}
-            className={`pb-1 border-b-2 transition-all ${activeTab === 'geral' ? 'text-white border-[#f0b90b]' : 'text-gray-400 border-transparent hover:text-white'}`}
-          >
-            Visão Geral
-          </button>
-          <button
-            id="tab-spot-btn"
-            onClick={() => setActiveTab('spot')}
-            className={`pb-1 border-b-2 transition-all ${activeTab === 'spot' ? 'text-white border-[#f0b90b]' : 'text-gray-400 border-transparent hover:text-white'}`}
-          >
-            Spot (Minha Carteira)
-          </button>
-          <button
-            id="tab-alpha-btn"
-            onClick={() => setActiveTab('alpha')}
-            className={`pb-1 border-b-2 transition-all ${activeTab === 'alpha' ? 'text-white border-[#f0b90b]' : 'text-gray-400 border-transparent hover:text-white'}`}
-          >
-            Alpha
-          </button>
-          <button
-            id="tab-fundos-btn"
-            onClick={() => setActiveTab('fundos')}
-            className={`pb-1 border-b-2 transition-all ${activeTab === 'fundos' ? 'text-white border-[#f0b90b]' : 'text-gray-400 border-transparent hover:text-white'}`}
-          >
-            Fundos
-          </button>
-        </div>
-
+        
         {/* Action Shortcut Buttons */}
         <div className="flex items-center gap-3">
           <button
@@ -219,14 +219,19 @@ export default function Header({
           >
             <PlusCircle className="w-3.5 h-3.5" /> Adicionar Operação
           </button>
+
+          <div className="flex items-center gap-2 ml-2 pl-2 border-l border-gray-800">
+            <span className="w-2 h-2 rounded-full bg-[#0ecb81] animate-pulse"></span>
+            <span className="text-[9px] text-gray-400 font-mono font-semibold hidden sm:inline">CONEXÃO DIRECTA</span>
+          </div>
         </div>
       </div>
 
       {/* Main Stats Panel - High Fidelity mimicking screenshot */}
-      <div className="max-w-7xl mx-auto px-6 py-6 grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+      <div className="max-w-7xl mx-auto px-6 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
-        {/* Balance Section */}
-        <div className="space-y-1 animate-in fade-in slide-in-from-left-5 duration-300">
+        {/* Left Column: Balance Section & Active Investments (7 Cols) */}
+        <div className="lg:col-span-7 space-y-1 animate-in fade-in slide-in-from-left-5 duration-300">
           <div className="flex items-center gap-3 text-xs text-gray-400">
             <span>Valor total estimado</span>
             <button 
@@ -599,22 +604,164 @@ export default function Header({
           </div>
         </div>
 
-        {/* Real-time Status / Re-evaluation trigger */}
-        <div className="flex flex-col md:items-end gap-2 self-end">
+        {/* Right Column: QUICK OCO CALCULATOR FOR BINANCE (As requested in Foto 1) & Re-analyze trigger (5 Cols) */}
+        <div className="lg:col-span-5 flex flex-col gap-4">
+          
+          {/* Quick OCO Calculator Box (Foto 1 Requirement) */}
+          <div className="bg-[#1e2026] border border-[#f0b90b]/40 rounded-xl p-4 space-y-3.5 shadow-xl relative overflow-hidden">
+            <div className="flex items-center justify-between border-b border-gray-800 pb-2">
+              <div className="flex items-center gap-2">
+                <Calculator className="w-4 h-4 text-[#f0b90b]" />
+                <h3 className="text-xs font-bold text-white font-sans flex items-center gap-1.5">
+                  Calculadora Rápida OCO Binance
+                </h3>
+              </div>
+              <span className="text-[9px] bg-[#f0b90b]/10 text-[#f0b90b] font-mono border border-[#f0b90b]/20 px-1.5 py-0.5 rounded font-extrabold uppercase">
+                Copiar & Colar 1-Clique
+              </span>
+            </div>
+
+            {/* Form Inputs Grid */}
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <label className="text-[9.5px] font-bold text-gray-400 block mb-1">Preço Entrada</label>
+                <input
+                  type="text"
+                  value={calcPrice}
+                  onChange={(e) => setCalcPrice(e.target.value)}
+                  placeholder="0.0467"
+                  className="w-full bg-gray-900 border border-gray-700/80 rounded px-2 py-1 text-xs font-mono font-bold text-white focus:outline-none focus:border-[#f0b90b]"
+                />
+              </div>
+
+              <div>
+                <label className="text-[9.5px] font-bold text-[#0ecb81] block mb-1">Ganho % (+)</label>
+                <input
+                  type="text"
+                  value={calcGainPct}
+                  onChange={(e) => setCalcGainPct(e.target.value)}
+                  placeholder="5.5"
+                  className="w-full bg-gray-900 border border-emerald-500/40 rounded px-2 py-1 text-xs font-mono font-bold text-[#0ecb81] focus:outline-none focus:border-[#0ecb81]"
+                />
+              </div>
+
+              <div>
+                <label className="text-[9.5px] font-bold text-[#f6465d] block mb-1">Perda % (-)</label>
+                <input
+                  type="text"
+                  value={calcLossPct}
+                  onChange={(e) => setCalcLossPct(e.target.value)}
+                  placeholder="3.0"
+                  className="w-full bg-gray-900 border border-red-500/40 rounded px-2 py-1 text-xs font-mono font-bold text-[#f6465d] focus:outline-none focus:border-[#f6465d]"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[9.5px] font-bold text-gray-400 block mb-1">Aporte Desejado (Opcional - $ / R$)</label>
+              <input
+                type="text"
+                value={calcInvestAmount}
+                onChange={(e) => setCalcInvestAmount(e.target.value)}
+                placeholder="100"
+                className="w-full bg-gray-900 border border-gray-700/80 rounded px-2 py-1 text-xs font-mono font-bold text-yellow-400 focus:outline-none focus:border-[#f0b90b]"
+              />
+            </div>
+
+            {/* Results & 1-Click Copy Buttons */}
+            {numEntryPrice > 0 ? (
+              <div className="space-y-2 pt-1 border-t border-gray-800 font-mono text-xs">
+                
+                {/* Take Profit Result */}
+                <div className="flex items-center justify-between bg-emerald-950/20 p-2 rounded border border-emerald-500/20">
+                  <div>
+                    <span className="text-[9px] text-[#0ecb81] block font-bold">ALVO DE LUCRO (TAKE PROFIT)</span>
+                    <span className="text-white font-extrabold text-sm">{formatHighPrec(calcTargetVal)}</span>
+                    {numInvestAmount > 0 && (
+                      <span className="text-[9px] text-emerald-400 block font-sans">
+                        Lucro estim: +${calcGainMoney.toFixed(2)} (+R$ {(calcGainMoney * usdtBrl).toFixed(2)})
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => handleCopyText(formatHighPrec(calcTargetVal), 'target')}
+                    className="bg-[#0ecb81] hover:bg-[#0cb171] text-black font-extrabold px-2.5 py-1 rounded text-[10px] flex items-center gap-1 transition-all cursor-pointer shadow"
+                  >
+                    {copiedKey === 'target' ? (
+                      <><ClipboardCheck className="w-3 h-3" /> Copiado!</>
+                    ) : (
+                      <><Copy className="w-3 h-3" /> Copiar Alvo</>
+                    )}
+                  </button>
+                </div>
+
+                {/* Stop Loss Result */}
+                <div className="flex items-center justify-between bg-red-950/20 p-2 rounded border border-red-500/20">
+                  <div>
+                    <span className="text-[9px] text-[#f6465d] block font-bold">STOP LOSS SEGURO</span>
+                    <span className="text-white font-extrabold text-sm">{formatHighPrec(calcStopVal)}</span>
+                    {numInvestAmount > 0 && (
+                      <span className="text-[9px] text-red-400 block font-sans">
+                        Risco estim: -${calcLossMoney.toFixed(2)} (-R$ {(calcLossMoney * usdtBrl).toFixed(2)})
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => handleCopyText(formatHighPrec(calcStopVal), 'stop')}
+                    className="bg-[#f6465d] hover:bg-[#d9384e] text-white font-extrabold px-2.5 py-1 rounded text-[10px] flex items-center gap-1 transition-all cursor-pointer shadow"
+                  >
+                    {copiedKey === 'stop' ? (
+                      <><ClipboardCheck className="w-3 h-3" /> Copiado!</>
+                    ) : (
+                      <><Copy className="w-3 h-3" /> Copiar Stop</>
+                    )}
+                  </button>
+                </div>
+
+                {/* Quantity to buy if investment provided */}
+                {numInvestAmount > 0 && (
+                  <div className="flex items-center justify-between bg-yellow-950/20 p-2 rounded border border-yellow-500/20">
+                    <div>
+                      <span className="text-[9px] text-yellow-400 block font-bold">QTD DE ATIVOS PARA COMPRA</span>
+                      <span className="text-white font-extrabold text-xs">{formatHighPrec(calcCoinQty)} un.</span>
+                    </div>
+                    <button
+                      onClick={() => handleCopyText(formatHighPrec(calcCoinQty), 'qty')}
+                      className="bg-[#f0b90b] hover:bg-[#d4a30a] text-black font-extrabold px-2 py-1 rounded text-[10px] flex items-center gap-1 transition-all cursor-pointer shadow"
+                    >
+                      {copiedKey === 'qty' ? (
+                        <><ClipboardCheck className="w-3 h-3" /> Copiado!</>
+                      ) : (
+                        <><Copy className="w-3 h-3" /> Copiar Qtd</>
+                      )}
+                    </button>
+                  </div>
+                )}
+
+              </div>
+            ) : (
+              <div className="text-[10px] text-gray-500 text-center py-2 italic font-sans">
+                Digite o preço de entrada acima para gerar o cálculo OCO pronto para copiar!
+              </div>
+            )}
+          </div>
+
+          {/* Re-analysis Trigger Button */}
           <button
             id="reanalyze-now-btn"
             onClick={onReanalyzeClick}
             disabled={isAnalyzing}
-            className={`w-full md:w-auto bg-[#f0b90b] hover:bg-[#d4a30a] text-black rounded-xl px-5 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-[#f0b90b]/10 cursor-pointer ${isAnalyzing ? 'opacity-50 cursor-not-allowed animate-pulse' : 'animate-pulse-subtle'}`}
+            className={`w-full bg-[#f0b90b] hover:bg-[#d4a30a] text-black rounded-xl px-5 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-[#f0b90b]/10 cursor-pointer ${isAnalyzing ? 'opacity-50 cursor-not-allowed animate-pulse' : 'animate-pulse-subtle'}`}
           >
             <RefreshCw className={`w-4 h-4 text-black ${isAnalyzing ? 'animate-spin' : ''}`} />
             {isAnalyzing ? "Estudando Mercado com IA..." : "🤖 Analisar Agora & Atualizar Sinais"}
           </button>
           
-          <div className="text-[10px] text-gray-500 flex items-center gap-1.5 justify-center md:justify-end mt-1.5">
+          <div className="text-[10px] text-gray-500 flex items-center gap-1.5 justify-center mt-0.5">
             <AlertCircle className="w-3.5 h-3.5 text-[#f0b90b] shrink-0" />
             <span>Dados de preços reais importados via API Pública da Binance.</span>
           </div>
+
         </div>
 
       </div>
@@ -622,3 +769,4 @@ export default function Header({
     </header>
   );
 }
+
