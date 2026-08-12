@@ -12,6 +12,9 @@ export interface Recommendation {
   recommendedEntryCandleLabel?: string;// Ex: "Vela das 13:30 (Martelo Comprador - Entrada Imediata)"
   recommendedExitTime?: string;        // Ex: "13:45:00"
   candleOffsetMinutes?: number;        // 5, 10 ou 15
+  candlePatternName?: string;          // Ex: "Martelo Comprador no Suporte (5M)"
+  priceActionStructure?: string;       // Ex: "Topo Alto: $0.0495 | Fundo Protegido: $0.0450"
+  candleTechnicalDetail?: string;      // Ex: "Volume +180% | RSI 5M em 45 (Zona Compradora)"
 }
 
 export interface Trade {

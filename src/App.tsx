@@ -15,7 +15,7 @@ import ProfitGoalConfigurator from './components/ProfitGoalConfigurator';
 import FirebaseSync from './components/FirebaseSync';
 import { getDeviceSyncId, saveToCloud, subscribeToCloud } from './lib/firebase';
 import { Trade, Recommendation } from './types';
-import { compute5MinCandleEntry } from './utils/candleUtils';
+import { analyzeCoinCandleScenario } from './utils/candleUtils';
 
 // Real-world holdings from user's actual screenshot to amaze them!
 const INITIAL_TRADES: Trade[] = [
@@ -176,7 +176,7 @@ export function generateSmartRecommendations(
       const coinName = COIN_NAMES_MAP[base] || base;
 
       const offsetIndex = (recommendations.length % 3) + 1;
-      const candleDetail = compute5MinCandleEntry(now, offsetIndex);
+      const candleDetail = analyzeCoinCandleScenario(item.symbol, curPrice, changePct, parseFloat(volM), now, offsetIndex);
 
       recommendations.push({
         symbol: item.symbol,
@@ -191,7 +191,10 @@ export function generateSmartRecommendations(
         recommendedEntryCandleLabel: candleDetail.candleLabel,
         recommendedExitTime: candleDetail.exitTimeStr,
         candleOffsetMinutes: candleDetail.candleOffsetMinutes,
-        reasoning: `${candleDetail.candleReasoning} Sinal auditado na Binance: a ${coinName} (${item.symbol}) apresenta variação compradora de +${changePct.toFixed(2)}% em 24h com $${volM}M de volume na Binance.`
+        candlePatternName: candleDetail.candlePatternName,
+        priceActionStructure: candleDetail.priceActionStructure,
+        candleTechnicalDetail: candleDetail.candleTechnicalDetail,
+        reasoning: `${candleDetail.candleReasoning}`
       });
 
       addedBases.add(base);
@@ -226,7 +229,7 @@ export function generateSmartRecommendations(
       );
 
       const offsetIndex = (recommendations.length % 3) + 1;
-      const candleDetail = compute5MinCandleEntry(now, offsetIndex);
+      const candleDetail = analyzeCoinCandleScenario(cand.symbol, curP, cand.estProfit, 35, now, offsetIndex);
 
       recommendations.push({
         symbol: cand.symbol,
@@ -241,6 +244,9 @@ export function generateSmartRecommendations(
         recommendedEntryCandleLabel: candleDetail.candleLabel,
         recommendedExitTime: candleDetail.exitTimeStr,
         candleOffsetMinutes: candleDetail.candleOffsetMinutes,
+        candlePatternName: candleDetail.candlePatternName,
+        priceActionStructure: candleDetail.priceActionStructure,
+        candleTechnicalDetail: candleDetail.candleTechnicalDetail,
         reasoning: `${candleDetail.candleReasoning} ${cand.getReasoning(curP)}`
       });
 
