@@ -1,20 +1,49 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, doc, setDoc, onSnapshot, getDoc, Firestore } from 'firebase/firestore';
+import { 
+  getFirestore, 
+  initializeFirestore, 
+  persistentLocalCache, 
+  persistentMultipleTabManager,
+  doc, 
+  setDoc, 
+  onSnapshot, 
+  getDoc, 
+  getDocFromServer,
+  Firestore 
+} from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
-// Initialize Firebase safely
+// Initialize Firebase safely with long-polling autodetect to prevent WebSocket connection failures
 let dbInstance: Firestore | null = null;
 try {
   if (firebaseConfig && firebaseConfig.projectId) {
     const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
     const dbId = (firebaseConfig as any).firestoreDatabaseId;
-    dbInstance = dbId ? getFirestore(app, dbId) : getFirestore(app);
+
+    try {
+      dbInstance = initializeFirestore(app, {
+        experimentalAutoDetectLongPolling: true,
+        localCache: persistentLocalCache({
+          tabManager: persistentMultipleTabManager()
+        })
+      }, dbId || '(default)');
+    } catch {
+      // Fallback if initializeFirestore was already invoked
+      dbInstance = dbId ? getFirestore(app, dbId) : getFirestore(app);
+    }
   }
 } catch (e) {
   console.warn('Erro ao inicializar Firebase Firestore:', e);
 }
 
 export const db = dbInstance;
+
+// Test connection silently without crashing
+if (db) {
+  getDocFromServer(doc(db, 'test', 'connection')).catch((err) => {
+    console.warn('Firestore operando em modo offline / reconectando:', err?.message || err);
+  });
+}
 
 // Retrieve or generate a unique Device/Sync ID to identify this user's data in the cloud
 export function getDeviceSyncId(): string {

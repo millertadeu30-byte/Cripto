@@ -124,6 +124,8 @@ export function generateSmartRecommendations(
   activeTrades: Trade[],
   allTickers: BinanceTicker24h[] = []
 ): Recommendation[] {
+  const now = new Date();
+
   // 1. Collect ALL base symbols from user's active portfolio (e.g. SOL from SOLUSDT or SOLBRL)
   const blockedBaseSymbols = new Set<string>();
   activeTrades.forEach(trade => {
@@ -274,10 +276,14 @@ export default function App() {
       const saved = localStorage.getItem('binance_assistant_trades');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const valid = parsed.filter(t => t && typeof t === 'object' && t.id && t.symbol && t.coinName);
+          if (valid.length > 0) return valid;
+        }
       }
     } catch (e) {
       console.warn('Erro ao ler trades do localStorage:', e);
+      try { localStorage.removeItem('binance_assistant_trades'); } catch {}
     }
     return INITIAL_TRADES;
   });
@@ -294,10 +300,14 @@ export default function App() {
       const saved = localStorage.getItem('binance_assistant_recommendations');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const valid = parsed.filter(r => r && typeof r === 'object' && r.symbol && r.coinName && typeof r.currentPrice === 'number');
+          if (valid.length > 0) return valid;
+        }
       }
     } catch (e) {
       console.warn('Erro ao ler recomendações do localStorage:', e);
+      try { localStorage.removeItem('binance_assistant_recommendations'); } catch {}
     }
     return INITIAL_RECOMMENDATIONS;
   });
