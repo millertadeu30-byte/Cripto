@@ -1,5 +1,5 @@
 // Service Worker for Binance Assistente IA PWA
-const CACHE_NAME = 'binance-assistant-pwa-v3';
+const CACHE_NAME = 'binance-assistant-pwa-v4';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -19,7 +19,7 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// Activate Event - clean up all old caches immediately to resolve blank screens
+// Activate Event - clean up all old caches immediately
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -37,58 +37,30 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch Event - Network-First for Navigation (HTML) & Stale-While-Revalidate for Assets
+// Fetch Event - Network-First for ALL local requests to guarantee fresh assets
 self.addEventListener('fetch', (event) => {
   const request = event.request;
   const url = new URL(request.url);
 
-  // Focus only on same-origin requests
-  if (url.origin !== self.location.origin) {
+  if (request.method !== 'GET' || url.origin !== self.location.origin) {
     return;
   }
 
-  // Navigation requests (the index.html page itself) -> NETWORK FIRST
-  // This is crucial: it prevents the "blank screen" Vite hash bundle mismatch by always checking the network first when online
-  if (request.mode === 'navigate' || (request.method === 'GET' && request.headers.get('accept')?.includes('text/html'))) {
-    event.respondWith(
-      fetch(request)
-        .then((response) => {
-          // Cache the latest copy
-          const responseClone = response.clone();
+  event.respondWith(
+    fetch(request)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const responseClone = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(request, responseClone);
           });
-          return response;
-        })
-        .catch(() => {
-          // If offline, return from cache
-          return caches.match(request).then((cachedResponse) => {
-            return cachedResponse || caches.match('/index.html');
-          });
-        })
-    );
-    return;
-  }
-
-  // Static assets (JS, CSS, Images, Manifest) -> STALE-WHILE-REVALIDATE
-  // Serve from cache instantly, but fetch update in background
-  if (request.method === 'GET') {
-    event.respondWith(
-      caches.match(request).then((cachedResponse) => {
-        const fetchPromise = fetch(request)
-          .then((networkResponse) => {
-            if (networkResponse.status === 200) {
-              const responseClone = networkResponse.clone();
-              caches.open(CACHE_NAME).then((cache) => {
-                cache.put(request, responseClone);
-              });
-            }
-            return networkResponse;
-          })
-          .catch(() => null);
-
-        return cachedResponse || fetchPromise;
+        }
+        return networkResponse;
       })
-    );
-  }
+      .catch(() => {
+        return caches.match(request).then((cachedResponse) => {
+          return cachedResponse || (request.mode === 'navigate' ? caches.match('/index.html') : null);
+        });
+      })
+  );
 });
