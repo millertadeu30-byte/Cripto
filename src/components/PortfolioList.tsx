@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { DollarSign, Trash2, ArrowUpRight, TrendingDown, TrendingUp, HelpCircle, AlertCircle, Info, ChevronRight, X, Pencil, ChevronDown, ChevronUp } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { DollarSign, Trash2, ArrowUpRight, TrendingDown, TrendingUp, HelpCircle, AlertCircle, Info, ChevronRight, X, Pencil, ChevronDown, ChevronUp, Clock, Copy, Shield, ShieldCheck } from 'lucide-react';
 import { Trade } from '../types';
+import { analyze5MinCandle } from '../utils/candleUtils';
 
 interface PortfolioListProps {
   trades: Trade[];
@@ -23,6 +24,35 @@ export default function PortfolioList({
   goalPercent,
   displayCurrency
 }: PortfolioListProps) {
+  // 5-Minute Candle analysis timer
+  const [candleInfo, setCandleInfo] = useState(() => analyze5MinCandle());
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCandleInfo(analyze5MinCandle());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const handleCopyText = (textToCopy: string, keyName: string) => {
+    if (!textToCopy) return;
+    navigator.clipboard.writeText(textToCopy);
+    setCopiedKey(keyName);
+    setTimeout(() => {
+      setCopiedKey(null);
+    }, 2000);
+  };
+
+  const formatRawNumber = (num: number) => {
+    if (num === 0) return '0.00';
+    const absVal = Math.abs(num);
+    if (absVal < 0.0001) return num.toFixed(8);
+    if (absVal < 1) return num.toFixed(6);
+    if (absVal < 100) return num.toFixed(4);
+    return num.toFixed(2);
+  };
+
   const [selectedTradeExplanation, setSelectedTradeExplanation] = useState<Trade | null>(null);
   const [closingTradeId, setClosingTradeId] = useState<string | null>(null);
   const [exitPriceInput, setExitPriceInput] = useState<string>('');
@@ -518,6 +548,116 @@ export default function PortfolioList({
                       "{trade.aiReasoning || "Calculando limites ideais de preço... Clique no botão amarelo 'Analisar Agora' no cabeçalho para forçar atualização!"}"
                     </p>
                   </div>
+
+                  {/* PAINEL DINÂMICO DE PROTEÇÃO DE LUCRO & HORÁRIO DE SAÍDA (VELAS 5 MINUTOS - REQUISITO FOTOS 1 E 2) */}
+                  {(() => {
+                    const maxP = Math.max(trade.maxPriceReached || trade.purchasePrice, livePrice);
+                    const isProfitable = livePrice > trade.purchasePrice;
+
+                    return (
+                      <div className="bg-[#14171d] rounded-xl p-3.5 border border-[#0ecb81]/30 space-y-3 font-mono shadow-md">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-800 pb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="p-1 bg-[#0ecb81]/15 text-[#0ecb81] rounded text-xs font-bold">🛡️ TRAILING STOP PROTETOR</span>
+                            <div>
+                              <h5 className="text-xs font-bold text-white font-sans">Ajuste Dinâmico de Saída & Proteção de Lucro ({trade.symbol})</h5>
+                              <span className="text-[10px] text-gray-400 font-sans block">Monitoramento em Velas de 5 Minutos</span>
+                            </div>
+                          </div>
+
+                          {/* Candle 5m Countdown badge */}
+                          <div className="flex items-center gap-1.5 bg-gray-900 px-2.5 py-1 rounded border border-gray-800 text-[10px]">
+                            <span className="text-[#f0b90b] font-bold">⏰ Fechamento Vela 5M:</span>
+                            <span className="text-white font-black">{candleInfo.remainingStr}</span>
+                          </div>
+                        </div>
+
+                        {/* Trailing Stop Protection Status Rule */}
+                        <div className={`p-2.5 rounded-lg border text-xs font-sans transition-all ${isProfitable ? 'bg-[#0ecb81]/10 border-[#0ecb81]/30 text-emerald-200' : 'bg-blue-950/20 border-blue-800/40 text-blue-200'}`}>
+                          {isProfitable ? (
+                            <div className="flex items-start gap-2">
+                              <span className="text-emerald-400 text-base">🟢</span>
+                              <div>
+                                <strong className="block text-[#0ecb81] text-xs font-bold">VALOR EM ELEVAÇÃO (+{pnlPercent.toFixed(2)}%):</strong>
+                                <span className="text-[11px] leading-snug block mt-0.5">
+                                  Conforme o valor subiu para <strong>{displaySymbol} {livePrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}</strong>, o Stop Loss foi automaticamente elevado para <strong>{displaySymbol} {stopLossCoinPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}</strong> para GARANTIR O SEU LUCRO.
+                                </span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-start gap-2">
+                              <span className="text-blue-400 text-base">🛡️</span>
+                              <div>
+                                <strong className="block text-blue-300 text-xs font-bold">VALOR EM OSCILAÇÃO OU QUEDA ({pnlPercent.toFixed(2)}%):</strong>
+                                <span className="text-[11px] leading-snug block mt-0.5">
+                                  Se o valor cai, <strong>NADA MUDA!</strong> O Stop Loss continua <strong>MANTIDO FIXO em {displaySymbol} {stopLossCoinPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}</strong>. Ele NUNCA é rebaixado em quedas para proteger sua carteira de perdas maiores.
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Exit Time & Targets Grid with Copy Buttons */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1 text-xs">
+                          {/* 1. Recommended Exit Time */}
+                          <div className="bg-gray-900/80 p-2.5 rounded-lg border border-gray-800 flex flex-col justify-between">
+                            <div>
+                              <span className="text-[9px] text-gray-400 font-sans block font-bold">HORÁRIO INDICADO DE SAÍDA (5M):</span>
+                              <span className="text-[#f0b90b] font-extrabold text-sm block mt-0.5">⏰ {candleInfo.projectedExitTime}</span>
+                              <span className="text-[8.5px] text-gray-500 font-sans block mt-0.5">Janela ideal de realização de lucro</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleCopyText(candleInfo.projectedExitTime, `${trade.id}-exittime`)}
+                              className="mt-2 w-full bg-[#f0b90b]/20 hover:bg-[#f0b90b]/30 text-[#f0b90b] border border-[#f0b90b]/30 py-1 rounded text-[10px] font-bold transition-all cursor-pointer"
+                            >
+                              {copiedKey === `${trade.id}-exittime` ? '✓ Copiado' : '📋 Copiar Horário Saída'}
+                            </button>
+                          </div>
+
+                          {/* 2. Adjusted Exit Price Target */}
+                          <div className="bg-gray-900/80 p-2.5 rounded-lg border border-gray-800 flex flex-col justify-between">
+                            <div>
+                              <span className="text-[9px] text-[#0ecb81] font-sans block font-bold">ALVO DE SAÍDA (+{currentGoal}%):</span>
+                              <span className="text-[#0ecb81] font-extrabold text-sm block mt-0.5">
+                                {displaySymbol} {targetCoinPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}
+                              </span>
+                              <span className="text-[8.5px] text-gray-500 font-sans block mt-0.5">
+                                R$ {targetCoinPriceBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleCopyText(formatRawNumber(targetCoinPrice), `${trade.id}-targetprice`)}
+                              className="mt-2 w-full bg-[#0ecb81]/20 hover:bg-[#0ecb81]/30 text-[#0ecb81] border border-[#0ecb81]/30 py-1 rounded text-[10px] font-bold transition-all cursor-pointer"
+                            >
+                              {copiedKey === `${trade.id}-targetprice` ? '✓ Copiado' : '📋 Copiar Alvo Saída'}
+                            </button>
+                          </div>
+
+                          {/* 3. Protected Stop Loss */}
+                          <div className="bg-gray-900/80 p-2.5 rounded-lg border border-gray-800 flex flex-col justify-between">
+                            <div>
+                              <span className="text-[9px] text-red-400 font-sans block font-bold">STOP LOSS PROTEGIDO:</span>
+                              <span className="text-red-400 font-extrabold text-sm block mt-0.5">
+                                {displaySymbol} {stopLossCoinPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}
+                              </span>
+                              <span className="text-[8.5px] text-gray-500 font-sans block mt-0.5">
+                                R$ {stopLossCoinPriceBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleCopyText(formatRawNumber(stopLossCoinPrice), `${trade.id}-stopprice`)}
+                              className="mt-2 w-full bg-red-900/40 hover:bg-red-800/60 text-red-200 border border-red-800/40 py-1 rounded text-[10px] font-bold transition-all cursor-pointer"
+                            >
+                              {copiedKey === `${trade.id}-stopprice` ? '✓ Copiado' : '📋 Copiar Stop Seguro'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Technical Confluence S&R Visualization Map */}
                   {(() => {

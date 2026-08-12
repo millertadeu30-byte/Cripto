@@ -8,6 +8,10 @@ export interface Recommendation {
   estimatedProfit: number; // Porcentagem (ex: 3.5 para 3.5%)
   timeframe: string;       // ex: "2-4 horas" ou "Curtíssimo prazo"
   reasoning: string;       // Motivação detalhada
+  recommendedEntryTime?: string;       // Ex: "13:30:00" ou "13:35:00"
+  recommendedEntryCandleLabel?: string;// Ex: "Vela das 13:30 (Martelo Comprador - Entrada Imediata)"
+  recommendedExitTime?: string;        // Ex: "13:45:00"
+  candleOffsetMinutes?: number;        // 5, 10 ou 15
 }
 
 export interface Trade {

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { TrendingUp, ArrowUpRight, DollarSign, Clock, ShieldAlert, BadgeInfo, Play, Check, Sliders, Globe, Copy, ClipboardCheck, Calculator } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { TrendingUp, ArrowUpRight, DollarSign, Clock, ShieldAlert, BadgeInfo, Play, Check, Sliders, Globe, Copy, ClipboardCheck, Calculator, Timer } from 'lucide-react';
 import { Recommendation } from '../types';
+import { analyze5MinCandle } from '../utils/candleUtils';
 
 interface TopRecommendationsProps {
   recommendations: Recommendation[];
@@ -10,6 +11,16 @@ interface TopRecommendationsProps {
 }
 
 export default function TopRecommendations({ recommendations, isLoading, onBuyClick, usdtBrl = 5.62 }: TopRecommendationsProps) {
+  // 5m Candle real-time analysis timer
+  const [candleInfo, setCandleInfo] = useState(() => analyze5MinCandle());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCandleInfo(analyze5MinCandle());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   // Custom Gain % and Loss % configured by user (Foto 3 requirement)
   const [customGainPercent, setCustomGainPercent] = useState<string>('5.5');
   const [customLossPercent, setCustomLossPercent] = useState<string>('3.0');
@@ -172,6 +183,42 @@ export default function TopRecommendations({ recommendations, isLoading, onBuyCl
                   </div>
 
                   <h4 className="text-lg font-bold text-white font-sans mb-1">{rec.coinName}</h4>
+
+                  {/* 5-Minute Candle Buy Entry Time Box (Estudo de Velas de 5 em 5 minutos) */}
+                  <div className="bg-[#121418] border border-[#f0b90b]/40 p-2.5 rounded-lg my-2 font-mono shadow-inner">
+                    <div className="flex items-center justify-between text-[10px] text-[#f0b90b] font-bold mb-1">
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5 text-[#f0b90b]" /> Estudo de Velas 5M (Horário de Entrada)
+                      </span>
+                      <span className="bg-[#f0b90b]/10 px-1.5 py-0.5 rounded border border-[#f0b90b]/20 text-[9px]">
+                        Vela fecha em: {candleInfo.remainingStr}
+                      </span>
+                    </div>
+
+                    <div className="bg-black/60 p-2 rounded border border-gray-800 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-[9px] text-gray-400 block font-sans font-semibold">ENTRADA RECOMENDADA DE COMPRA:</span>
+                          <span className="text-[#f0b90b] font-black text-sm tracking-wider">
+                            ⏰ {rec.recommendedEntryTime || candleInfo.nextEntryTime}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => handleCopyText(rec.recommendedEntryTime || candleInfo.nextEntryTime, `${rec.symbol}-time`)}
+                          className="bg-[#f0b90b]/20 hover:bg-[#f0b90b]/30 text-[#f0b90b] border border-[#f0b90b]/40 px-2.5 py-1 rounded text-[9.5px] font-extrabold cursor-pointer transition-all shadow-sm"
+                        >
+                          {copiedKey === `${rec.symbol}-time` ? '✓ Copiado' : '📋 Copiar Horário'}
+                        </button>
+                      </div>
+
+                      {rec.recommendedEntryCandleLabel && (
+                        <div className="text-[9px] text-emerald-400 font-sans font-medium pt-1 border-t border-gray-800/80 flex items-center gap-1">
+                          <span className="text-[#f0b90b]">💡</span>
+                          <span>{rec.recommendedEntryCandleLabel}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                   
                   {/* Prices & Target (Calculated with High Precision, e.g. 0,0467 -> 0,049268 / 0,045299) */}
                   <div className="grid grid-cols-2 gap-2 my-3 bg-gray-900/60 p-3 rounded-lg border border-gray-800/80 text-xs font-mono">

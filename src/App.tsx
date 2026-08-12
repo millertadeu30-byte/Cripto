@@ -15,6 +15,7 @@ import ProfitGoalConfigurator from './components/ProfitGoalConfigurator';
 import FirebaseSync from './components/FirebaseSync';
 import { getDeviceSyncId, saveToCloud, subscribeToCloud } from './lib/firebase';
 import { Trade, Recommendation } from './types';
+import { compute5MinCandleEntry } from './utils/candleUtils';
 
 // Real-world holdings from user's actual screenshot to amaze them!
 const INITIAL_TRADES: Trade[] = [
@@ -174,6 +175,9 @@ export function generateSmartRecommendations(
 
       const coinName = COIN_NAMES_MAP[base] || base;
 
+      const offsetIndex = (recommendations.length % 3) + 1;
+      const candleDetail = compute5MinCandleEntry(now, offsetIndex);
+
       recommendations.push({
         symbol: item.symbol,
         coinName,
@@ -182,8 +186,12 @@ export function generateSmartRecommendations(
         targetPrice: curPrice * targetMult,
         stopLossPrice: curPrice * stopMult,
         estimatedProfit: parseFloat(estProfit.toFixed(2)),
-        timeframe: estProfit > 6 ? '2 a 6 horas' : 'Hoje',
-        reasoning: `Sinal validado por auditoria cruzada em 5 portais (Binance, TradingView, CoinMarketCap, CoinGecko e CryptoCompare). A ${coinName} (${item.symbol}) apresenta tendência compradora de +${changePct.toFixed(2)}% nas 24h com $${volM}M de volume em zona de suporte, sem qualquer conflito com seu portfólio ativo.`
+        timeframe: '5 Minutos',
+        recommendedEntryTime: candleDetail.entryTimeStr,
+        recommendedEntryCandleLabel: candleDetail.candleLabel,
+        recommendedExitTime: candleDetail.exitTimeStr,
+        candleOffsetMinutes: candleDetail.candleOffsetMinutes,
+        reasoning: `${candleDetail.candleReasoning} Sinal auditado na Binance: a ${coinName} (${item.symbol}) apresenta variação compradora de +${changePct.toFixed(2)}% em 24h com $${volM}M de volume na Binance.`
       });
 
       addedBases.add(base);
@@ -217,6 +225,9 @@ export function generateSmartRecommendations(
         cand.symbol === 'XRPUSDT' ? 2.45 : 25
       );
 
+      const offsetIndex = (recommendations.length % 3) + 1;
+      const candleDetail = compute5MinCandleEntry(now, offsetIndex);
+
       recommendations.push({
         symbol: cand.symbol,
         coinName: cand.coinName,
@@ -225,8 +236,12 @@ export function generateSmartRecommendations(
         targetPrice: curP * cand.targetMult,
         stopLossPrice: curP * cand.stopMult,
         estimatedProfit: cand.estProfit,
-        timeframe: cand.timeframe,
-        reasoning: cand.getReasoning(curP)
+        timeframe: '5 Minutos',
+        recommendedEntryTime: candleDetail.entryTimeStr,
+        recommendedEntryCandleLabel: candleDetail.candleLabel,
+        recommendedExitTime: candleDetail.exitTimeStr,
+        candleOffsetMinutes: candleDetail.candleOffsetMinutes,
+        reasoning: `${candleDetail.candleReasoning} ${cand.getReasoning(curP)}`
       });
 
       addedBases.add(cand.base);
