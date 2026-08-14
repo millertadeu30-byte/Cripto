@@ -1,3 +1,13 @@
+export interface MultiTimeframeStatus {
+  timeframe: string; // '5M' | '15M' | '1H' | '4H' | '1D'
+  trend: string;
+  rsi: number;
+  rsiStatus: string;
+  emaSignal: string;
+  volumeFlow: string;
+  summary: string;
+}
+
 export interface Recommendation {
   symbol: string;
   coinName: string;
@@ -6,8 +16,20 @@ export interface Recommendation {
   targetPrice: number;
   stopLossPrice?: number;
   estimatedProfit: number; // Porcentagem (ex: 3.5 para 3.5%)
-  timeframe: string;       // ex: "2-4 horas" ou "Curtíssimo prazo"
+  timeframe: string;       // ex: "Multi-Período (5M a 4H)"
   reasoning: string;       // Motivação detalhada
+  confluenceScore?: number;// 0 a 100% de pontuação técnica
+  macroTrend?: string;     // Resumo da tendência 1D / 4H
+  riskRewardRatio?: string;// Ex: "1 : 2.4"
+  technicalSupport?: number;
+  technicalResistance?: number;
+  mtfAnalysis?: {
+    tf5m: MultiTimeframeStatus;
+    tf15m: MultiTimeframeStatus;
+    tf1h: MultiTimeframeStatus;
+    tf4h: MultiTimeframeStatus;
+    tf1d: MultiTimeframeStatus;
+  };
   recommendedEntryTime?: string;       // Ex: "13:30:00" ou "13:35:00"
   recommendedEntryCandleLabel?: string;// Ex: "Vela das 13:30 (Martelo Comprador - Entrada Imediata)"
   recommendedExitTime?: string;        // Ex: "13:45:00"

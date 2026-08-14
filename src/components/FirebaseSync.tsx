@@ -3,7 +3,7 @@ import { Cloud, Copy, Check, Link, Database, RefreshCw } from 'lucide-react';
 
 interface FirebaseSyncProps {
   syncId: string;
-  status: 'syncing' | 'synced' | 'error';
+  status: 'syncing' | 'synced' | 'error' | 'offline';
   onSyncIdChange: (newSyncId: string) => void;
 }
 
@@ -55,6 +55,12 @@ export default function FirebaseSync({ syncId, status, onSyncIdChange }: Firebas
           <span className="bg-[#0ecb81]/15 text-[#0ecb81] text-[10px] font-extrabold px-2 py-0.5 rounded-full flex items-center gap-1">
             <span className="w-1.5 h-1.5 bg-[#0ecb81] rounded-full"></span>
             SALVO NA NUVEM
+          </span>
+        )}
+        {status === 'offline' && (
+          <span className="bg-[#0ecb81]/15 text-[#0ecb81] text-[10px] font-extrabold px-2 py-0.5 rounded-full flex items-center gap-1" title="Persistência local segura ativa">
+            <span className="w-1.5 h-1.5 bg-[#0ecb81] rounded-full"></span>
+            LOCAL ATIVO
           </span>
         )}
         {status === 'syncing' && (

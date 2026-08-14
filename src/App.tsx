@@ -16,6 +16,8 @@ import FirebaseSync from './components/FirebaseSync';
 import { getDeviceSyncId, saveToCloud, subscribeToCloud } from './lib/firebase';
 import { Trade, Recommendation } from './types';
 import { analyzeCoinCandleScenario } from './utils/candleUtils';
+import { generateAdvancedMultiTimeframeRecommendations } from './utils/technicalAnalysis';
+import { isVerifiedBinanceSpotCoin, VERIFIED_BINANCE_COINS } from './utils/verifiedCoins';
 
 // Real-world holdings from user's actual screenshot to amaze them!
 const INITIAL_TRADES: Trade[] = [
@@ -36,42 +38,6 @@ const INITIAL_TRADES: Trade[] = [
   }
 ];
 
-const INITIAL_RECOMMENDATIONS: Recommendation[] = [
-  {
-    symbol: 'BTCUSDT',
-    coinName: 'Bitcoin',
-    action: 'COMPRA',
-    currentPrice: 91520.40,
-    targetPrice: 93500.00,
-    stopLossPrice: 89900.00,
-    estimatedProfit: 2.16,
-    timeframe: 'Hoje',
-    reasoning: 'O Bitcoin consolidou acima de 91k com redução de volatilidade, padrão clássico de acumulação antes de romper a próxima resistência de curto prazo rumo ao alvo de 93.5k.'
-  },
-  {
-    symbol: 'ETHUSDT',
-    coinName: 'Ethereum',
-    action: 'COMPRA',
-    currentPrice: 2475.20,
-    targetPrice: 2600.00,
-    stopLossPrice: 2380.00,
-    estimatedProfit: 5.05,
-    timeframe: '1 a 3 dias',
-    reasoning: 'Ethereum formou pivô de alta na zona de suporte de $2.470 com divergência de alta no RSI no gráfico de 4 horas.'
-  },
-  {
-    symbol: 'XRPUSDT',
-    coinName: 'Ripple',
-    action: 'COMPRA',
-    currentPrice: 2.45,
-    targetPrice: 2.64,
-    stopLossPrice: 2.31,
-    estimatedProfit: 7.75,
-    timeframe: 'Curtíssimo Prazo',
-    reasoning: 'A Ripple consolidou uma base de acumulação sólida e agora rompe a resistência imediata com bom volume comprador.'
-  }
-];
-
 export interface BinanceTicker24h {
   symbol: string;
   lastPrice: string;
@@ -79,196 +45,16 @@ export interface BinanceTicker24h {
   quoteVolume: string;
 }
 
-const COIN_NAMES_MAP: { [key: string]: string } = {
-  BTC: 'Bitcoin',
-  ETH: 'Ethereum',
-  BNB: 'BNB',
-  XRP: 'Ripple',
-  SOL: 'Solana',
-  ADA: 'Cardano',
-  DOGE: 'Dogecoin',
-  AVAX: 'Avalanche',
-  LINK: 'Chainlink',
-  DOT: 'Polkadot',
-  SUI: 'Sui',
-  NEAR: 'Near Protocol',
-  PEPE: 'Pepe Coin',
-  SHIB: 'Shiba Inu',
-  FLOKI: 'Floki',
-  BONK: 'Bonk',
-  WIF: 'dogwifhat',
-  RENDER: 'Render Token',
-  FET: 'ASI Alliance',
-  APT: 'Aptos',
-  INJ: 'Injective',
-  OP: 'Optimism',
-  ARB: 'Arbitrum',
-  TIA: 'Celestia',
-  SEI: 'Sei',
-  LTC: 'Litecoin',
-  BCH: 'Bitcoin Cash',
-  ATOM: 'Cosmos',
-  XLM: 'Stellar',
-  TRX: 'TRON',
-  UNI: 'Uniswap'
-};
-
-const STABLECOINS_AND_FIAT = new Set([
-  'USDC', 'BUSD', 'FDUSD', 'TUSD', 'EUR', 'GBP', 'DAI', 'AEUR', 'USDE', 'WBTC', 'PAXG', 'BRL'
-]);
-
-// Helper function to generate professional recommendations for market opportunities,
-// strictly excluding ANY coin that is currently in active portfolio or has a sell/stop signal.
-export function generateSmartRecommendations(
-  prices: { [key: string]: number },
-  activeTrades: Trade[],
-  allTickers: BinanceTicker24h[] = []
-): Recommendation[] {
-  const now = new Date();
-
-  // 1. Collect ALL base symbols from user's active portfolio (e.g. SOL from SOLUSDT or SOLBRL)
-  const blockedBaseSymbols = new Set<string>();
-  activeTrades.forEach(trade => {
-    const base = trade.symbol.replace(/USDT$/, '').replace(/BRL$/, '').toUpperCase();
-    blockedBaseSymbols.add(base);
-  });
-
-  const recommendations: Recommendation[] = [];
-  const addedBases = new Set<string>();
-
-  // 2. Scan real-time 500+ Binance tickers if available
-  if (allTickers && allTickers.length > 0) {
-    const usdtPairs = allTickers.filter(t => {
-      if (!t.symbol.endsWith('USDT')) return false;
-      const base = t.symbol.replace('USDT', '');
-      
-      // Exclude stablecoins, fiat, and leveraged tokens
-      if (STABLECOINS_AND_FIAT.has(base)) return false;
-      if (base.endsWith('UP') || base.endsWith('DOWN') || base.endsWith('BEAR') || base.endsWith('BULL') || base.endsWith('3S') || base.endsWith('3L')) return false;
-      
-      // STRICT BLOCK: Exclude any coin in user's portfolio
-      if (blockedBaseSymbols.has(base)) return false;
-
-      const priceChange = parseFloat(t.priceChangePercent);
-      const volume = parseFloat(t.quoteVolume);
-      
-      return priceChange > 0.5 && priceChange < 35 && volume > 2000000;
-    });
-
-    // Sort by combined score of 24h change & volume
-    usdtPairs.sort((a, b) => {
-      const scoreA = parseFloat(a.priceChangePercent) * 0.6 + Math.log10(parseFloat(a.quoteVolume) || 1) * 2;
-      const scoreB = parseFloat(b.priceChangePercent) * 0.6 + Math.log10(parseFloat(b.quoteVolume) || 1) * 2;
-      return scoreB - scoreA;
-    });
-
-    for (const item of usdtPairs) {
-      if (recommendations.length >= 3) break;
-      const base = item.symbol.replace('USDT', '');
-      if (addedBases.has(base)) continue;
-
-      const curPrice = parseFloat(item.lastPrice);
-      const changePct = parseFloat(item.priceChangePercent);
-      const volM = (parseFloat(item.quoteVolume) / 1000000).toFixed(1);
-      
-      const targetMult = 1.045 + (Math.random() * 0.03); // +4.5% to +7.5%
-      const stopMult = 0.955;
-      const estProfit = ((targetMult - 1) * 100);
-
-      const coinName = COIN_NAMES_MAP[base] || base;
-
-      const offsetIndex = (recommendations.length % 3) + 1;
-      const candleDetail = analyzeCoinCandleScenario(item.symbol, curPrice, changePct, parseFloat(volM), now, offsetIndex);
-
-      recommendations.push({
-        symbol: item.symbol,
-        coinName,
-        action: 'COMPRA',
-        currentPrice: curPrice,
-        targetPrice: curPrice * targetMult,
-        stopLossPrice: curPrice * stopMult,
-        estimatedProfit: parseFloat(estProfit.toFixed(2)),
-        timeframe: '5 Minutos',
-        recommendedEntryTime: candleDetail.entryTimeStr,
-        recommendedEntryCandleLabel: candleDetail.candleLabel,
-        recommendedExitTime: candleDetail.exitTimeStr,
-        candleOffsetMinutes: candleDetail.candleOffsetMinutes,
-        candlePatternName: candleDetail.candlePatternName,
-        priceActionStructure: candleDetail.priceActionStructure,
-        candleTechnicalDetail: candleDetail.candleTechnicalDetail,
-        reasoning: `${candleDetail.candleReasoning}`
-      });
-
-      addedBases.add(base);
-    }
-  }
-
-  // 3. Fallback static candidate pool if API tickers list was empty or couldn't fill 3 items
-  if (recommendations.length < 3) {
-    const FALLBACK_CANDIDATES = [
-      { symbol: 'BTCUSDT', coinName: 'Bitcoin', base: 'BTC', targetMult: 1.035, stopMult: 0.975, estProfit: 3.5, timeframe: 'Hoje', getReasoning: (p: number) => `O Bitcoin demonstra consolidação técnica acima de $${p.toLocaleString('en-US', { maximumFractionDigits: 0 })}. Estrutura compradora confiável.` },
-      { symbol: 'ETHUSDT', coinName: 'Ethereum', base: 'ETH', targetMult: 1.052, stopMult: 0.96, estProfit: 5.2, timeframe: '1 a 3 dias', getReasoning: (p: number) => `Ethereum formou pivô de alta em $${p.toFixed(2)} no gráfico de 4h. Ponto ideal de entrada compradora.` },
-      { symbol: 'BNBUSDT', coinName: 'BNB', base: 'BNB', targetMult: 1.042, stopMult: 0.965, estProfit: 4.2, timeframe: 'Hoje', getReasoning: (p: number) => `BNB sustenta suporte técnico em $${p.toFixed(2)} com fluxo comprador constante na Binance.` },
-      { symbol: 'XRPUSDT', coinName: 'Ripple', base: 'XRP', targetMult: 1.078, stopMult: 0.945, estProfit: 7.8, timeframe: 'Curtíssimo Prazo', getReasoning: (p: number) => `Ripple rompe resistência com bom volume comprador em $${p.toFixed(2)}.` },
-      { symbol: 'AVAXUSDT', coinName: 'Avalanche', base: 'AVAX', targetMult: 1.062, stopMult: 0.95, estProfit: 6.2, timeframe: '2 a 6 horas', getReasoning: (p: number) => `Avalanche apresenta reversão de momentum em $${p.toFixed(2)} com divergência de alta no RSI.` },
-      { symbol: 'LINKUSDT', coinName: 'Chainlink', base: 'LINK', targetMult: 1.058, stopMult: 0.95, estProfit: 5.8, timeframe: '1 a 2 dias', getReasoning: (p: number) => `Chainlink mantém estrutura firme de suporte em $${p.toFixed(2)}.` },
-      { symbol: 'SUIUSDT', coinName: 'Sui', base: 'SUI', targetMult: 1.085, stopMult: 0.935, estProfit: 8.5, timeframe: '4 a 12 horas', getReasoning: (p: number) => `Sui registra aumento expressivo de volume em $${p.toFixed(2)}.` },
-      { symbol: 'NEARUSDT', coinName: 'Near Protocol', base: 'NEAR', targetMult: 1.072, stopMult: 0.94, estProfit: 7.2, timeframe: 'Hoje', getReasoning: (p: number) => `Near Protocol aciona gatilho comprador em $${p.toFixed(2)}.` },
-      { symbol: 'PEPEUSDT', coinName: 'Pepe Coin', base: 'PEPE', targetMult: 1.095, stopMult: 0.92, estProfit: 9.5, timeframe: 'Curtíssimo Prazo', getReasoning: (p: number) => `Pepe Coin apresenta forte momentum comprador com aumento de volume.` },
-      { symbol: 'DOGEUSDT', coinName: 'Dogecoin', base: 'DOGE', targetMult: 1.065, stopMult: 0.94, estProfit: 6.5, timeframe: 'Hoje', getReasoning: (p: number) => `Dogecoin acumula forças acima de $${p.toFixed(3)} para rompimento rápido.` },
-      { symbol: 'ADAUSDT', coinName: 'Cardano', base: 'ADA', targetMult: 1.055, stopMult: 0.95, estProfit: 5.5, timeframe: '1 a 2 dias', getReasoning: (p: number) => `Cardano em zona de acumulação em $${p.toFixed(3)}.` }
-    ];
-
-    for (const cand of FALLBACK_CANDIDATES) {
-      if (recommendations.length >= 3) break;
-      if (blockedBaseSymbols.has(cand.base) || addedBases.has(cand.base)) continue;
-
-      const curP = prices[cand.symbol] || (
-        cand.symbol === 'BTCUSDT' ? 91520 :
-        cand.symbol === 'ETHUSDT' ? 2475 :
-        cand.symbol === 'BNBUSDT' ? 592 :
-        cand.symbol === 'XRPUSDT' ? 2.45 : 25
-      );
-
-      const offsetIndex = (recommendations.length % 3) + 1;
-      const candleDetail = analyzeCoinCandleScenario(cand.symbol, curP, cand.estProfit, 35, now, offsetIndex);
-
-      recommendations.push({
-        symbol: cand.symbol,
-        coinName: cand.coinName,
-        action: 'COMPRA',
-        currentPrice: curP,
-        targetPrice: curP * cand.targetMult,
-        stopLossPrice: curP * cand.stopMult,
-        estimatedProfit: cand.estProfit,
-        timeframe: '5 Minutos',
-        recommendedEntryTime: candleDetail.entryTimeStr,
-        recommendedEntryCandleLabel: candleDetail.candleLabel,
-        recommendedExitTime: candleDetail.exitTimeStr,
-        candleOffsetMinutes: candleDetail.candleOffsetMinutes,
-        candlePatternName: candleDetail.candlePatternName,
-        priceActionStructure: candleDetail.priceActionStructure,
-        candleTechnicalDetail: candleDetail.candleTechnicalDetail,
-        reasoning: `${candleDetail.candleReasoning} ${cand.getReasoning(curP)}`
-      });
-
-      addedBases.add(cand.base);
-    }
-  }
-
-  return recommendations;
-}
-
 const INITIAL_LOGS = [
-  `[${new Date().toLocaleTimeString('pt-BR')}] 🤖 Assistente Binance inicializado com sucesso. Pronto para operar!`,
-  `[${new Date().toLocaleTimeString('pt-BR')}] 🛡️ Carteira inicial importada com base no seu portfólio ativo.`,
-  `[${new Date().toLocaleTimeString('pt-BR')}] 📈 Buscando feeds em tempo real na API pública da Binance...`
+  `[${new Date().toLocaleTimeString('pt-BR')}] 🤖 Assistente Binance MTF (Multi-Timeframe) inicializado.`,
+  `[${new Date().toLocaleTimeString('pt-BR')}] 🛡️ Carteira e Gestão de Risco ativadas (Filtro 5M, 15M, 1H, 4H e 1D).`,
+  `[${new Date().toLocaleTimeString('pt-BR')}] 📈 Monitorando apenas criptomoedas oficiais e verificadas da Binance Spot.`
 ];
 
 export default function App() {
   // Sync ID and Firebase Status states
   const [syncId, setSyncId] = useState<string>(getDeviceSyncId());
-  const [firebaseStatus, setFirebaseStatus] = useState<'syncing' | 'synced' | 'error'>('syncing');
+  const [firebaseStatus, setFirebaseStatus] = useState<'syncing' | 'synced' | 'error' | 'offline'>('synced');
 
   // Core Portfolio & Signals state loaded from local storage as offline fallback
   const [trades, setTrades] = useState<Trade[]>(() => {
@@ -301,15 +87,19 @@ export default function App() {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const valid = parsed.filter(r => r && typeof r === 'object' && r.symbol && r.coinName && typeof r.currentPrice === 'number');
-          if (valid.length > 0) return valid;
+          // Strictly filter out any old unverified or invalid coins (e.g. SNXXBUSDT)
+          const valid = parsed.filter(r => 
+            r && typeof r === 'object' && r.symbol && r.coinName && 
+            typeof r.currentPrice === 'number' && isVerifiedBinanceSpotCoin(r.symbol)
+          );
+          if (valid.length >= 3) return valid;
         }
       }
     } catch (e) {
       console.warn('Erro ao ler recomendações do localStorage:', e);
       try { localStorage.removeItem('binance_assistant_recommendations'); } catch {}
     }
-    return INITIAL_RECOMMENDATIONS;
+    return generateAdvancedMultiTimeframeRecommendations({});
   });
 
   const [history, setHistory] = useState<any[]>(() => {
@@ -604,14 +394,13 @@ export default function App() {
     setFirebaseStatus('syncing');
     const timer = setTimeout(() => {
       saveToCloud(syncId, trades, history, cashBalance, cashBalanceCurrency, displayCurrency, goalPercent)
-        .then(() => {
-          setFirebaseStatus('synced');
+        .then((saved) => {
+          setFirebaseStatus(saved ? 'synced' : 'offline');
         })
-        .catch((err) => {
-          console.error(err);
-          setFirebaseStatus('error');
+        .catch(() => {
+          setFirebaseStatus('offline');
         });
-    }, 800); // 800ms debounce to batch fast state modifications
+    }, 1200); // 1200ms debounce to batch fast state modifications
     
     return () => clearTimeout(timer);
   }, [trades, history, cashBalance, cashBalanceCurrency, displayCurrency, goalPercent, syncId]);
@@ -846,16 +635,17 @@ export default function App() {
         return updatedTradesList;
       });
 
-      // 2. Generate Top 3 Recommendations dynamically across 500+ Binance coins
+      // 2. Generate Top 3 Recommendations dynamically across verified Binance Spot coins with Multi-Timeframe Confluence
       const activeList = updatedTradesList.length > 0 ? updatedTradesList : tradesRef.current;
-      const smartRecs = generateSmartRecommendations(marketPrices, activeList, rawBinanceTickersRef.current);
+      const activeSymbols = activeList.map(t => t.symbol);
+      const smartRecs = generateAdvancedMultiTimeframeRecommendations(marketPrices, activeSymbols, rawBinanceTickersRef.current);
       setRecommendations(smartRecs);
 
       logsToPush.forEach(log => pushLog(log));
 
       setLastAnalysisTime(new Date());
       setCountdown(1800); // Reset timer window
-      pushLog('🟢 Varredura de 500+ moedas na Binance concluída! Nenhuma moeda do seu portfólio ativo foi recomendada.');
+      pushLog('🟢 Análise Multi-Períodos (MTF: 5M, 15M, 1H, 4H, 1D) concluída em 60+ moedas oficiais da Binance Spot!');
     } catch (err) {
       console.error('Erro na análise local:', err);
       pushLog('🔴 Falha na análise local de mercado.');
@@ -876,7 +666,8 @@ export default function App() {
       });
 
       if (hasConflict || recommendations.length === 0) {
-        const freshSmartRecs = generateSmartRecommendations(marketPrices, activeList, rawBinanceTickersRef.current);
+        const activeSymbols = activeList.map(t => t.symbol);
+        const freshSmartRecs = generateAdvancedMultiTimeframeRecommendations(marketPrices, activeSymbols, rawBinanceTickersRef.current);
         setRecommendations(freshSmartRecs);
       }
     }
