@@ -595,6 +595,44 @@ export default function AddTradeModal({
                   className="bg-[#2b2f36] text-white border border-gray-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#f0b90b] w-full placeholder-gray-500 disabled:opacity-50"
                 />
               </div>
+
+              {/* Quick 1-Click Altcoin & Meme Selector */}
+              <div className="flex items-center gap-1 overflow-x-auto pb-1 pt-0.5 scrollbar-thin">
+                <span className="text-[9px] text-gray-500 font-bold whitespace-nowrap uppercase">Atalhos:</span>
+                {[
+                  { base: 'PEPE', label: '🐸 PEPE' },
+                  { base: 'DOGE', label: '🐕 DOGE' },
+                  { base: 'SHIB', label: '🐶 SHIB' },
+                  { base: 'BONK', label: '🦴 BONK' },
+                  { base: 'NEIRO', label: '🐱 NEIRO' },
+                  { base: 'AVNT', label: '🔥 AVNT' },
+                  { base: 'HOME', label: '🏠 HOME' },
+                  { base: 'SUI', label: '⚡ SUI' },
+                  { base: 'NEAR', label: '🌐 NEAR' },
+                  { base: 'SOL', label: '☀️ SOL' },
+                  { base: 'FET', label: '🤖 FET' },
+                  { base: 'BTC', label: '🪙 BTC' },
+                  { base: 'ETH', label: '💎 ETH' },
+                  { base: 'XRP', label: '💧 XRP' },
+                ].map(c => {
+                  const currentBase = symbol.replace(/USDT$/, '').replace(/BRL$/, '');
+                  const isSelected = currentBase === c.base;
+                  return (
+                    <button
+                      key={c.base}
+                      type="button"
+                      onClick={() => handleCoinSelection(c.base)}
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono transition-all whitespace-nowrap border cursor-pointer ${
+                        isSelected 
+                          ? 'bg-[#f0b90b] text-black border-[#f0b90b]' 
+                          : 'bg-[#181a20] text-gray-300 border-gray-800 hover:border-[#f0b90b]/50 hover:text-white'
+                      }`}
+                    >
+                      {c.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {simpleMode ? (

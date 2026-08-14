@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   TrendingUp, ArrowUpRight, Sliders, Calculator, 
-  AlertOctagon, Zap, Layers, BadgeInfo, Clock
+  AlertOctagon, Zap, Layers, BadgeInfo, Clock, Search,
+  Flame, Sparkles, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { Recommendation } from '../types';
 import { analyze5MinCandle } from '../utils/candleUtils';
@@ -13,10 +14,47 @@ interface TopRecommendationsProps {
   usdtBrl?: number;
 }
 
+type CategoryType = 'Todas' | 'Memes' | 'Trending & Novas' | 'Layer 1 / Layer 2' | 'AI & Big Data' | 'DeFi & RWA';
+
+const CATEGORY_TABS: { id: CategoryType; label: string; icon: string; badge?: string }[] = [
+  { id: 'Todas', label: 'Todas as Criptos', icon: '🌟' },
+  { id: 'Memes', label: 'Memecoins (PEPE, SHIB, DOGE...)', icon: '🐸', badge: 'Alta Volatilidade' },
+  { id: 'Trending & Novas', label: 'Altcoins em Alta (AVNT, SUI...)', icon: '🚀', badge: 'Hot' },
+  { id: 'AI & Big Data', label: 'IA & Big Data (FET, TAO...)', icon: '🤖' },
+  { id: 'Layer 1 / Layer 2', label: 'Top Altcoins L1/L2 (SOL, AVAX...)', icon: '⚡' },
+  { id: 'DeFi & RWA', label: 'DeFi & RWA (AAVE, ONDO...)', icon: '🏦' }
+];
+
+const POPULAR_QUICK_COINS = [
+  { base: 'PEPE', label: '🐸 PEPE', category: 'Memes' },
+  { base: 'DOGE', label: '🐕 DOGE', category: 'Memes' },
+  { base: 'SHIB', label: '🐶 SHIB', category: 'Memes' },
+  { base: 'BONK', label: '🦴 BONK', category: 'Memes' },
+  { base: 'WIF', label: '🎩 WIF', category: 'Memes' },
+  { base: 'NEIRO', label: '🐱 NEIRO', category: 'Memes' },
+  { base: 'FLOKI', label: '🛡️ FLOKI', category: 'Memes' },
+  { base: 'SOL', label: '☀️ SOL', category: 'Layer 1 / Layer 2' },
+  { base: 'AVNT', label: '🔥 AVNT', category: 'Trending & Novas' },
+  { base: 'HOME', label: '🏠 HOME', category: 'Trending & Novas' },
+  { base: 'SUI', label: '⚡ SUI', category: 'Trending & Novas' },
+  { base: 'NEAR', label: '🌐 NEAR', category: 'Layer 1 / Layer 2' },
+  { base: 'BANANA', label: '🍌 BANANA', category: 'Trending & Novas' },
+  { base: 'FET', label: '🤖 FET', category: 'AI & Big Data' },
+  { base: 'TAO', label: '🧠 TAO', category: 'AI & Big Data' },
+  { base: 'BTC', label: '🪙 BTC', category: 'Layer 1 / Layer 2' },
+  { base: 'ETH', label: '💎 ETH', category: 'Layer 1 / Layer 2' },
+  { base: 'XRP', label: '💧 XRP', category: 'Layer 1 / Layer 2' }
+];
+
 export default function TopRecommendations({ recommendations, isLoading, onBuyClick, usdtBrl = 5.62 }: TopRecommendationsProps) {
   // 5m Candle timer
   const [candleInfo, setCandleInfo] = useState(() => analyze5MinCandle());
   const [selectedTfTab, setSelectedTfTab] = useState<{ [symbol: string]: '5M' | '15M' | '1H' | '4H' | '1D' }>({});
+  
+  // Category & search filtering
+  const [selectedCategory, setSelectedCategory] = useState<CategoryType>('Todas');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [showFullRadar, setShowFullRadar] = useState<boolean>(false);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -69,8 +107,23 @@ export default function TopRecommendations({ recommendations, isLoading, onBuyCl
     }, 2000);
   };
 
-  // Only Top 3 best analyzed coins
-  const top3 = useMemo(() => recommendations.slice(0, 3), [recommendations]);
+  // Filter recommendations based on selected category & search query
+  const filteredRecs = useMemo(() => {
+    return recommendations.filter(rec => {
+      const matchesSearch = searchQuery.trim() === '' || 
+        rec.symbol.toLowerCase().includes(searchQuery.toLowerCase().trim()) ||
+        rec.coinName.toLowerCase().includes(searchQuery.toLowerCase().trim()) ||
+        (rec.baseSymbol && rec.baseSymbol.toLowerCase().includes(searchQuery.toLowerCase().trim()));
+
+      if (!matchesSearch) return false;
+
+      if (selectedCategory === 'Todas') return true;
+      return rec.category === selectedCategory;
+    });
+  }, [recommendations, selectedCategory, searchQuery]);
+
+  // Top 3 best analyzed coins of the active filter
+  const top3 = useMemo(() => filteredRecs.slice(0, 3), [filteredRecs]);
 
   if (isLoading) {
     return (
@@ -94,11 +147,11 @@ export default function TopRecommendations({ recommendations, isLoading, onBuyCl
           <div className="flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-[#f0b90b]" />
             <h3 className="text-base sm:text-lg font-bold text-white">
-              Top 3 Melhores Oportunidades Analisadas
+              Recomendações e Radar de Altcoins & Memes
             </h3>
           </div>
           <p className="text-xs text-gray-400 mt-0.5">
-            Varredura técnica de mercado com confluência gráfica e relação risco/retorno favorável.
+            Varredura técnica em tempo real na Binance Spot (incluindo Pepe, Memecoins, L1/L2 e Novas Altcoins).
           </p>
         </div>
 
@@ -139,11 +192,109 @@ export default function TopRecommendations({ recommendations, isLoading, onBuyCl
         </div>
       </div>
 
+      {/* Category Tabs: Memes, Trending Altcoins, AI, L1/L2, DeFi */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
+        {CATEGORY_TABS.map(tab => {
+          const isActive = selectedCategory === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => {
+                setSelectedCategory(tab.id);
+                setSearchQuery('');
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer border ${
+                isActive 
+                  ? 'bg-[#f0b90b] text-black border-[#f0b90b] shadow-md shadow-yellow-500/10' 
+                  : 'bg-[#1e2026] text-gray-400 border-gray-800 hover:text-white hover:border-gray-700'
+              }`}
+            >
+              <span>{tab.icon}</span>
+              <span>{tab.label}</span>
+              {tab.badge && (
+                <span className={`text-[9px] px-1 py-0.2 rounded font-extrabold ${isActive ? 'bg-black/20 text-black' : 'bg-red-500/20 text-red-400'}`}>
+                  {tab.badge}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Quick Search & Popular Altcoin / Meme Chips */}
+      <div className="bg-[#1e2026]/70 border border-gray-800 rounded-xl p-2.5 space-y-2">
+        <div className="flex flex-col sm:flex-row items-center gap-2">
+          {/* Search Input */}
+          <div className="relative flex-1 w-full">
+            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Buscar moeda (ex: PEPE, DOGE, SOL, AVNT, HOME, NEAR, SHIB)..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-[#14151a] border border-gray-700 rounded-lg pl-9 pr-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#f0b90b]"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white text-xs"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* Quick Filter Info */}
+          <div className="text-[11px] text-gray-400 flex items-center gap-1.5 self-end sm:self-auto font-mono">
+            <span>Mostrando:</span>
+            <span className="text-[#f0b90b] font-bold">{filteredRecs.length} moedas</span>
+          </div>
+        </div>
+
+        {/* Quick Chips for One-Click Filter (Memes & Altcoins) */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-0.5">
+          <span className="text-[10px] text-gray-500 font-bold whitespace-nowrap uppercase">Acesso Rápido:</span>
+          {POPULAR_QUICK_COINS.map(coin => {
+            const isMatch = searchQuery.toUpperCase() === coin.base;
+            return (
+              <button
+                key={coin.base}
+                onClick={() => {
+                  if (isMatch) {
+                    setSearchQuery('');
+                  } else {
+                    setSearchQuery(coin.base);
+                  }
+                }}
+                className={`px-2 py-0.5 rounded-full text-[11px] font-bold font-mono transition-all cursor-pointer whitespace-nowrap border ${
+                  isMatch 
+                    ? 'bg-[#f0b90b] text-black border-[#f0b90b]' 
+                    : 'bg-[#14151a] text-gray-300 border-gray-800 hover:border-[#f0b90b]/50 hover:text-white'
+                }`}
+              >
+                {coin.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* TOP 3 CARDS */}
       {top3.length === 0 ? (
-        <div className="text-center py-8 text-gray-400 text-sm">
+        <div className="text-center py-8 text-gray-400 text-sm bg-[#1e2026]/40 rounded-xl border border-gray-800">
           <BadgeInfo className="w-6 h-6 text-[#f0b90b] mx-auto mb-1 opacity-80" />
-          Nenhuma recomendação no momento. Clique em <strong className="text-white">"Reanalisar Portfólio"</strong> no topo.
+          Nenhuma recomendação encontrada para o filtro atual (<strong className="text-white">{searchQuery || selectedCategory}</strong>).
+          <div className="mt-2">
+            <button
+              onClick={() => {
+                setSelectedCategory('Todas');
+                setSearchQuery('');
+              }}
+              className="text-xs bg-[#f0b90b] text-black px-3 py-1 rounded-lg font-bold"
+            >
+              Ver Todas as Criptomoedas
+            </button>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -178,11 +329,16 @@ export default function TopRecommendations({ recommendations, isLoading, onBuyCl
                 </div>
 
                 <div>
-                  {/* Top Bar: Action & Symbol */}
-                  <div className="flex items-center gap-2 mb-1.5">
+                  {/* Top Bar: Action, Category & Symbol */}
+                  <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
                     <span className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] px-1.5 py-0.5 rounded font-extrabold uppercase flex items-center gap-1">
                       <Zap className="w-3 h-3 text-emerald-400" /> {rec.action}
                     </span>
+                    {rec.category && (
+                      <span className="bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 text-[9px] px-1.5 py-0.5 rounded font-bold">
+                        {rec.category}
+                      </span>
+                    )}
                     <span className="text-xs text-white font-mono font-bold">{rec.symbol}</span>
                   </div>
 
@@ -362,6 +518,63 @@ export default function TopRecommendations({ recommendations, isLoading, onBuyCl
           })}
         </div>
       )}
+
+      {/* Expandable Altcoin & Meme Radar Table */}
+      <div className="border-t border-gray-800 pt-3">
+        <button
+          onClick={() => setShowFullRadar(prev => !prev)}
+          className="w-full bg-[#1e2026] hover:bg-[#252830] border border-gray-800 text-gray-300 hover:text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center justify-between transition-colors cursor-pointer"
+        >
+          <div className="flex items-center gap-2">
+            <Flame className="w-4 h-4 text-[#f0b90b]" />
+            <span>Radar Expandido de Altcoins & Memes da Binance ({filteredRecs.length} moedas analisadas)</span>
+          </div>
+          <div className="flex items-center gap-1 text-[#f0b90b]">
+            <span>{showFullRadar ? 'Recolher Radar' : 'Ver Todas'}</span>
+            {showFullRadar ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </div>
+        </button>
+
+        {showFullRadar && (
+          <div className="mt-3 bg-[#14151a] border border-gray-800 rounded-xl overflow-hidden animate-in fade-in duration-200">
+            <div className="max-h-72 overflow-y-auto divide-y divide-gray-800/60 font-mono text-xs">
+              {filteredRecs.map((rec) => (
+                <div 
+                  key={rec.symbol}
+                  className="p-2.5 flex items-center justify-between hover:bg-[#1e2026] transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] bg-gray-800 text-gray-300 px-1.5 py-0.5 rounded font-bold">
+                      {rec.category || 'Altcoin'}
+                    </span>
+                    <div>
+                      <div className="font-bold text-white flex items-center gap-1.5">
+                        <span>{rec.coinName}</span>
+                        <span className="text-gray-400 text-[10px] font-mono">({rec.symbol})</span>
+                      </div>
+                      <div className="text-[10px] text-gray-400 font-sans">
+                        {formatPriceHighPrecision(rec.currentPrice)} • RSI 1H: <strong className="text-emerald-400">{rec.mtfAnalysis?.tf1h?.rsi || 48}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-[#f0b90b] bg-[#f0b90b]/10 px-2 py-0.5 rounded border border-[#f0b90b]/30">
+                      Score {rec.confluenceScore || 85}%
+                    </span>
+                    <button
+                      onClick={() => onBuyClick(rec)}
+                      className="bg-emerald-500 hover:bg-emerald-600 text-black text-[10px] font-extrabold px-2.5 py-1 rounded transition-colors cursor-pointer"
+                    >
+                      Comprar
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
