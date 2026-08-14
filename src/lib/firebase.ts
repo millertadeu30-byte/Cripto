@@ -9,14 +9,50 @@ import {
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
-// Check if quota was recently exhausted (within 2 hours) to prevent endless retry spam
-function checkIsQuotaExhausted(): boolean {
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+export interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+  };
+}
+
+export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errMsg = error instanceof Error ? error.message : String(error);
+  if (errMsg.includes('Quota limit exceeded') || errMsg.includes('resource-exhausted')) {
+    markQuotaExhausted();
+  }
+  const errInfo: FirestoreErrorInfo = {
+    error: errMsg,
+    authInfo: {
+      userId: null,
+      email: null
+    },
+    operationType,
+    path
+  };
+  console.warn('Firestore Operation Notice:', JSON.stringify(errInfo));
+}
+
+// Check if quota was marked exhausted within the last 24 hours
+export function isQuotaExhausted(): boolean {
   try {
     const item = localStorage.getItem('firestore_quota_exhausted_ts');
     if (item) {
       const ts = parseInt(item, 10);
-      // If marked within last 2 hours, consider quota exhausted
-      if (!isNaN(ts) && Date.now() - ts < 2 * 60 * 60 * 1000) {
+      // Quotas in Firebase reset daily. Keep quota pause for 12 hours or until manual reset.
+      if (!isNaN(ts) && Date.now() - ts < 12 * 60 * 60 * 1000) {
         return true;
       }
     }
@@ -30,21 +66,27 @@ export function markQuotaExhausted() {
   } catch (e) {}
 }
 
-export function isCloudAvailable(): boolean {
-  return !checkIsQuotaExhausted();
+export function resetQuotaExhaustedFlag() {
+  try {
+    localStorage.removeItem('firestore_quota_exhausted_ts');
+  } catch (e) {}
 }
 
-// Initialize Firebase safely without heavy persistent sync loops that crash on quota limits
+export function isCloudAvailable(): boolean {
+  return !isQuotaExhausted();
+}
+
+// Initialize Firebase safely
 let dbInstance: Firestore | null = null;
 
 try {
-  if (firebaseConfig && firebaseConfig.projectId && !checkIsQuotaExhausted()) {
+  if (firebaseConfig && firebaseConfig.projectId) {
     const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
     const dbId = (firebaseConfig as any).firestoreDatabaseId;
     dbInstance = dbId ? getFirestore(app, dbId) : getFirestore(app);
   }
 } catch (e) {
-  console.warn('Firebase Firestore desativado temporariamente:', e);
+  console.warn('Firebase Firestore initialization:', e);
 }
 
 export const db = dbInstance;
@@ -86,11 +128,16 @@ export async function saveToCloud(
   displayCurrency: 'BRL' | 'USDT' | 'BTC',
   goalPercent: number
 ): Promise<boolean> {
-  if (!db || checkIsQuotaExhausted()) return false;
+  // If quota is exhausted or db is unavailable, immediately skip cloud write and use local persistence
+  if (!db || isQuotaExhausted()) {
+    return false;
+  }
   
-  // Rate limit saves to cloud to at least 20 seconds apart to preserve free quota
+  // Rate limit saves to cloud to at least 30 seconds apart to conserve write units
   const now = Date.now();
-  if (now - lastSaveAttempt < 20000) return false;
+  if (now - lastSaveAttempt < 30000) {
+    return false;
+  }
   lastSaveAttempt = now;
 
   try {
@@ -106,19 +153,16 @@ export async function saveToCloud(
     }, { merge: true });
     return true;
   } catch (err: any) {
-    if (err?.code === 'resource-exhausted' || err?.message?.includes('Quota limit exceeded')) {
-      markQuotaExhausted();
-      console.warn('Firestore: Limite de cota diária gratuita atingido. Operando perfeitamente em modo de persistência local.');
-      return false;
-    }
-    console.warn('Aviso sincronização Firebase:', err?.message || err);
+    handleFirestoreError(err, OperationType.WRITE, `users/${syncId}`);
     return false;
   }
 }
 
 // Fetch once from cloud
 export async function fetchFromCloud(syncId: string): Promise<CloudData | null> {
-  if (!db || checkIsQuotaExhausted()) return null;
+  if (!db || isQuotaExhausted()) {
+    return null;
+  }
   try {
     const userDocRef = doc(db, 'users', syncId);
     const snap = await getDoc(userDocRef);
@@ -126,18 +170,14 @@ export async function fetchFromCloud(syncId: string): Promise<CloudData | null> 
       return snap.data() as CloudData;
     }
   } catch (err: any) {
-    if (err?.code === 'resource-exhausted' || err?.message?.includes('Quota limit exceeded')) {
-      markQuotaExhausted();
-      return null;
-    }
-    console.warn('Aviso consulta Firebase:', err?.message || err);
+    handleFirestoreError(err, OperationType.GET, `users/${syncId}`);
   }
   return null;
 }
 
 // Listen to real-time changes
 export function subscribeToCloud(syncId: string, callback: (data: CloudData | null) => void) {
-  if (!db || checkIsQuotaExhausted()) {
+  if (!db || isQuotaExhausted()) {
     callback(null);
     return () => {};
   }
@@ -150,12 +190,7 @@ export function subscribeToCloud(syncId: string, callback: (data: CloudData | nu
         callback(null);
       }
     }, (err: any) => {
-      if (err?.code === 'resource-exhausted' || err?.message?.includes('Quota limit exceeded')) {
-        markQuotaExhausted();
-        console.warn('Firestore: Cota de escrita do backend gratuita esgotada. Mantendo dados seguros em armazenamento local.');
-      } else {
-        console.warn('Alerta listener do Firebase:', err?.message || err);
-      }
+      handleFirestoreError(err, OperationType.GET, `users/${syncId}`);
       callback(null);
     });
   } catch (e) {
@@ -163,3 +198,4 @@ export function subscribeToCloud(syncId: string, callback: (data: CloudData | nu
     return () => {};
   }
 }
+

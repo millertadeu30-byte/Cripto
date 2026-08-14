@@ -2,7 +2,7 @@ export interface VerifiedCoin {
   base: string;
   symbol: string;
   name: string;
-  category: 'Layer 1' | 'Layer 2' | 'DeFi' | 'AI / Big Data' | 'Meme' | 'Gaming / Metaverse' | 'Infra' | 'Altcoins & RWA';
+  category: 'Trending & Novas' | 'Layer 1 / Layer 2' | 'AI & Big Data' | 'Memes' | 'DeFi & RWA' | 'Gaming & Infra';
   minVolumeUSDT: number;
 }
 
@@ -16,7 +16,7 @@ export const KNOWN_BINANCE_NAMES: { [base: string]: string } = {
   DOGE: 'Dogecoin',
   AVAX: 'Avalanche',
   LINK: 'Chainlink',
-  SUI: 'Sui',
+  SUI: 'Sui Network',
   NEAR: 'Near Protocol',
   PEPE: 'Pepe Coin',
   SHIB: 'Shiba Inu',
@@ -61,10 +61,10 @@ export const KNOWN_BINANCE_NAMES: { [base: string]: string } = {
   HBAR: 'Hedera',
   VET: 'VeChain',
   FIL: 'Filecoin',
-  PENDLE: 'Pendle',
-  ENA: 'Ethena',
+  PENDLE: 'Pendle Finance',
+  ENA: 'Ethena Labs',
   KAVA: 'Kava',
-  // Popular altcoins & community favorites
+  // Trending Altcoins, Memes & Hot Binance Spot listings
   AVNT: 'Aventis Metaverse (AVNT)',
   HOME: 'Home Protocol (HOME)',
   NEIRO: 'First Neiro on Ethereum',
@@ -177,10 +177,27 @@ export function formatCoinDisplayName(baseOrSymbol: string): string {
   return `${base} (${base})`;
 }
 
-/**
- * Returns true if the cryptocurrency is verified, officially listed on Binance Spot,
- * and passes basic legitimacy checks.
- */
+export function getCoinCategory(base: string): VerifiedCoin['category'] {
+  const upper = base.toUpperCase().trim();
+  
+  if (['AVNT', 'HOME', 'NEIRO', 'BANANA', 'TURBO', '1000SATS', 'NOT', 'COW', 'THE', 'DRIFT', 'ACT', 'PNUT', 'KAIA', 'ME', 'MOVE', 'VIRTUAL', 'AIXBT', 'CATI', 'HMSTR', 'DOGS'].includes(upper)) {
+    return 'Trending & Novas';
+  }
+  if (['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'ADA', 'AVAX', 'SUI', 'NEAR', 'DOT', 'APT', 'OP', 'ARB', 'TIA', 'SEI', 'LTC', 'BCH', 'ATOM', 'TRX', 'TON', 'POL', 'ALGO', 'FTM', 'KAS'].includes(upper)) {
+    return 'Layer 1 / Layer 2';
+  }
+  if (['FET', 'RENDER', 'TAO', 'WLD', 'VIRTUAL', 'AIXBT', 'ACT', 'AI', 'NFP', 'IO', 'NEAR', 'GRT'].includes(upper)) {
+    return 'AI & Big Data';
+  }
+  if (['PEPE', 'SHIB', 'DOGE', 'FLOKI', 'BONK', 'WIF', 'NEIRO', 'TURBO', 'POPCAT', 'BOME', 'MEME', 'MYRO', 'PNUT', 'DOGS'].includes(upper)) {
+    return 'Memes';
+  }
+  if (['UNI', 'AAVE', 'MKR', 'CRV', 'DYDX', 'LDO', 'PENDLE', 'ENA', 'ONDO', 'JUP', 'COW', 'THE', 'CETUS', 'ETHFI', 'REZ', 'SNX', 'GMX', 'LQTY', 'COMP'].includes(upper)) {
+    return 'DeFi & RWA';
+  }
+  return 'Gaming & Infra';
+}
+
 export function isVerifiedBinanceSpotCoin(symbol: string): boolean {
   if (!symbol) return false;
   const clean = symbol.toUpperCase().trim();
@@ -194,8 +211,8 @@ export const VERIFIED_BINANCE_COINS: VerifiedCoin[] = Object.keys(KNOWN_BINANCE_
   base,
   symbol: `${base}USDT`,
   name: KNOWN_BINANCE_NAMES[base],
-  category: 'Altcoins & RWA',
-  minVolumeUSDT: 500000
+  category: getCoinCategory(base),
+  minVolumeUSDT: 200000
 }));
 
 export function getVerifiedCoinInfo(symbolOrBase: string): VerifiedCoin | undefined {
@@ -209,7 +226,7 @@ export function getVerifiedCoinInfo(symbolOrBase: string): VerifiedCoin | undefi
     base,
     symbol,
     name,
-    category: 'Altcoins & RWA',
-    minVolumeUSDT: 500000
+    category: getCoinCategory(base),
+    minVolumeUSDT: 200000
   };
 }

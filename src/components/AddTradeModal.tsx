@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, DollarSign, RefreshCw, Layers } from 'lucide-react';
+import { X, Save, DollarSign, RefreshCw, Layers, Search } from 'lucide-react';
 import { Trade } from '../types';
+import { VERIFIED_BINANCE_COINS, formatCoinDisplayName } from '../utils/verifiedCoins';
 
 interface AddTradeModalProps {
   isOpen: boolean;
@@ -18,21 +19,6 @@ interface AddTradeModalProps {
   cashBalanceCurrency: 'BRL' | 'USDT';
   onUpdateCashBalance: (amount: number, currency: 'BRL' | 'USDT') => void;
 }
-
-const COMMON_COINS = [
-  { base: 'BTC', name: 'Bitcoin' },
-  { base: 'ETH', name: 'Ethereum' },
-  { base: 'SOL', name: 'Solana' },
-  { base: 'BNB', name: 'BNB' },
-  { base: 'XRP', name: 'Ripple' },
-  { base: 'ADA', name: 'Cardano' },
-  { base: 'DOGE', name: 'Dogecoin' },
-  { base: 'LINK', name: 'Chainlink' },
-  { base: 'SUI', name: 'Sui' },
-  { base: 'NEAR', name: 'Near Protocol' },
-  { base: 'PEPE', name: 'Pepe Coin' },
-  { base: 'WIF', name: 'dogwifhat' }
-];
 
 export default function AddTradeModal({ 
   isOpen, 
@@ -373,13 +359,13 @@ export default function AddTradeModal({
       setCoinName('');
       return;
     }
-    const coin = COMMON_COINS.find(c => c.base === base);
+    const coin = VERIFIED_BINANCE_COINS.find(c => c.base === base);
     if (coin) {
       setSymbol(base + currency);
       setCoinName(coin.name);
     } else {
-      setSymbol(base);
-      setCoinName(base.replace('USDT', '').replace('BRL', ''));
+      setSymbol(base + currency);
+      setCoinName(formatCoinDisplayName(base));
     }
   };
 
@@ -546,24 +532,51 @@ export default function AddTradeModal({
             
             {/* Quick Selection / Coin Symbol */}
             <div>
-              <label className="block text-xs text-gray-400 font-medium mb-1">Escolha a Criptomoeda</label>
+              <label className="block text-xs text-gray-400 font-medium mb-1">Escolha a Criptomoeda (100+ Oficiais Binance)</label>
               <div className="grid grid-cols-2 gap-2 mb-2">
                 <select
                   id="select-symbol-dropdown"
                   value={symbol === 'CUSTOM' ? 'CUSTOM' : symbol.replace(/USDT$/, '').replace(/BRL$/, '')}
                   onChange={(e) => handleCoinSelection(e.target.value)}
-                  className="bg-[#2b2f36] text-white border border-gray-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#f0b90b] w-full"
+                  className="bg-[#2b2f36] text-white border border-gray-800 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#f0b90b] w-full cursor-pointer"
                 >
-                  {COMMON_COINS.map(c => (
-                    <option key={c.base} value={c.base}>{c.name} ({c.base})</option>
-                  ))}
-                  <option value="CUSTOM">Outra moeda (digitar)</option>
+                  <optgroup label="🔥 Trending & Novas Listagens">
+                    {VERIFIED_BINANCE_COINS.filter(c => c.category === 'Trending & Novas').map(c => (
+                      <option key={c.base} value={c.base}>{c.name} ({c.base})</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="⚡ Layer 1 / Layer 2">
+                    {VERIFIED_BINANCE_COINS.filter(c => c.category === 'Layer 1 / Layer 2').map(c => (
+                      <option key={c.base} value={c.base}>{c.name} ({c.base})</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="🤖 AI & Big Data">
+                    {VERIFIED_BINANCE_COINS.filter(c => c.category === 'AI & Big Data').map(c => (
+                      <option key={c.base} value={c.base}>{c.name} ({c.base})</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="🎭 Memecoins">
+                    {VERIFIED_BINANCE_COINS.filter(c => c.category === 'Memes').map(c => (
+                      <option key={c.base} value={c.base}>{c.name} ({c.base})</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="🏦 DeFi & RWA">
+                    {VERIFIED_BINANCE_COINS.filter(c => c.category === 'DeFi & RWA').map(c => (
+                      <option key={c.base} value={c.base}>{c.name} ({c.base})</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="🎮 Gaming & Infra">
+                    {VERIFIED_BINANCE_COINS.filter(c => c.category === 'Gaming & Infra').map(c => (
+                      <option key={c.base} value={c.base}>{c.name} ({c.base})</option>
+                    ))}
+                  </optgroup>
+                  <option value="CUSTOM">➕ Outra moeda (digitar manualmente)</option>
                 </select>
 
                 <input
                   id="custom-symbol-input"
                   type="text"
-                  placeholder="Ex: BTCBRL"
+                  placeholder="Ex: BTCBRL ou AVNTUSDT"
                   value={symbol === 'CUSTOM' ? '' : symbol}
                   disabled={symbol !== 'CUSTOM' && symbol !== ''}
                   onChange={(e) => {

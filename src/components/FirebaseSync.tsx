@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Cloud, Copy, Check, Link, Database, RefreshCw } from 'lucide-react';
+import { Cloud, Copy, Check, Link, Database, RefreshCw, ExternalLink, ShieldCheck } from 'lucide-react';
+import { isQuotaExhausted, resetQuotaExhaustedFlag } from '../lib/firebase';
 
 interface FirebaseSyncProps {
   syncId: string;
@@ -13,6 +14,7 @@ export default function FirebaseSync({ syncId, status, onSyncIdChange }: Firebas
   const [inputVal, setInputVal] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [needsConfirmation, setNeedsConfirmation] = useState(false);
+  const [quotaExceeded, setQuotaExceeded] = useState(() => isQuotaExhausted());
 
   const handleCopy = async () => {
     try {
@@ -47,29 +49,29 @@ export default function FirebaseSync({ syncId, status, onSyncIdChange }: Firebas
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Cloud className="w-5 h-5 text-[#f0b90b]" />
-          <h3 className="text-sm font-bold text-white uppercase tracking-wider">Sincronização Nuvem</h3>
+          <h3 className="text-sm font-bold text-white uppercase tracking-wider">Sincronização & Persistência</h3>
         </div>
         
         {/* Connection Status Badge */}
-        {status === 'synced' && (
+        {status === 'synced' && !quotaExceeded && (
           <span className="bg-[#0ecb81]/15 text-[#0ecb81] text-[10px] font-extrabold px-2 py-0.5 rounded-full flex items-center gap-1">
             <span className="w-1.5 h-1.5 bg-[#0ecb81] rounded-full"></span>
             SALVO NA NUVEM
           </span>
         )}
-        {status === 'offline' && (
+        {(status === 'offline' || quotaExceeded) && (
           <span className="bg-[#0ecb81]/15 text-[#0ecb81] text-[10px] font-extrabold px-2 py-0.5 rounded-full flex items-center gap-1" title="Persistência local segura ativa">
-            <span className="w-1.5 h-1.5 bg-[#0ecb81] rounded-full"></span>
-            LOCAL ATIVO
+            <ShieldCheck className="w-3 h-3 text-[#0ecb81]" />
+            LOCAL ATIVO & SEGURO
           </span>
         )}
-        {status === 'syncing' && (
+        {status === 'syncing' && !quotaExceeded && (
           <span className="bg-[#f0b90b]/15 text-[#f0b90b] text-[10px] font-extrabold px-2 py-0.5 rounded-full flex items-center gap-1 animate-pulse">
             <RefreshCw className="w-2.5 h-2.5 animate-spin" />
             SINCRONIZANDO
           </span>
         )}
-        {status === 'error' && (
+        {status === 'error' && !quotaExceeded && (
           <span className="bg-[#f6465d]/15 text-[#f6465d] text-[10px] font-extrabold px-2 py-0.5 rounded-full flex items-center gap-1">
             <span className="w-1.5 h-1.5 bg-[#f6465d] rounded-full"></span>
             NUVEM OFFLINE
@@ -79,8 +81,40 @@ export default function FirebaseSync({ syncId, status, onSyncIdChange }: Firebas
 
       {/* Explanatory text */}
       <p className="text-xs text-gray-400 leading-relaxed">
-        Suas operações e histórico são salvos automaticamente. Para acessar no celular ou outro computador, use o seu ID de Sincronização exclusivo.
+        Suas operações e histórico são salvos automaticamente no armazenamento local. Para acessar no celular ou outro computador, use o seu ID de Sincronização exclusivo.
       </p>
+
+      {/* Quota Limit Info Notice if reached */}
+      {quotaExceeded && (
+        <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 text-[11px] text-gray-300 space-y-1.5">
+          <div className="flex items-center gap-1.5 text-blue-400 font-bold">
+            <ShieldCheck className="w-4 h-4" />
+            <span>Modo Local Seguro Ativo</span>
+          </div>
+          <p className="text-gray-400 leading-relaxed">
+            A cota diária gratuita de escritas do Firebase Firestore foi atingida hoje (renova automaticamente todos os dias). Todos os seus trades, cálculos e configurações continuam 100% gravados com total segurança no seu navegador.
+          </p>
+          <div className="pt-1 flex items-center justify-between text-[10px]">
+            <a 
+              href="https://console.firebase.google.com/project/gen-lang-client-0844737316/firestore/databases/ai-studio-binancecryptoass-77adeeec-9173-4ced-b664-0c5584274d9b/data?openUpgradeDialog=true" 
+              target="_blank" 
+              rel="noreferrer"
+              className="text-[#f0b90b] hover:underline flex items-center gap-1 font-bold"
+            >
+              <ExternalLink className="w-3 h-3" /> Abrir Console Firebase / Cotas
+            </a>
+            <button
+              onClick={() => {
+                resetQuotaExhaustedFlag();
+                setQuotaExceeded(false);
+              }}
+              className="text-gray-400 hover:text-white underline cursor-pointer"
+            >
+              Testar Nuvem Novamente
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Sync ID display box */}
       <div className="bg-[#1e2026] border border-gray-800/80 rounded-xl p-3 flex items-center justify-between gap-3">
@@ -180,3 +214,4 @@ export default function FirebaseSync({ syncId, status, onSyncIdChange }: Firebas
     </div>
   );
 }
+

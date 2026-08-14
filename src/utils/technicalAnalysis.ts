@@ -179,11 +179,11 @@ export function evaluateMultiTimeframeAnalysis(
     score += 10;
   }
 
-  // 4. Volume Surge
-  if (volumeQuoteM > 20) {
+  // 4. Volume Surge & Momentum
+  if (volumeQuoteM > 5) {
     score += 10;
-  } else if (volumeQuoteM > 8) {
-    score += 5;
+  } else if (volumeQuoteM > 0.5) {
+    score += 8;
   }
 
   score = Math.min(96, Math.max(65, score));
@@ -298,11 +298,7 @@ export function generateAdvancedMultiTimeframeRecommendations(
   }
 
   // 2. Fallback seeds if offline or empty
-  const FALLBACK_BASES = [
-    'BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'SUI', 'NEAR', 'PEPE', 'WIF', 'DOGE', 
-    'AVNT', 'HOME', 'NEIRO', 'BANANA', 'TURBO', '1000SATS', 'NOT', 'TAO', 
-    'LINK', 'AVAX', 'ADA', 'RENDER', 'FET', 'INJ', 'APT', 'TIA', 'SEI', 'PENDLE', 'ENA'
-  ];
+  const FALLBACK_BASES = Object.keys(KNOWN_BINANCE_NAMES);
 
   FALLBACK_BASES.forEach(base => {
     if (blockedBases.has(base) || candidateMap.has(base)) return;
@@ -341,24 +337,23 @@ export function generateAdvancedMultiTimeframeRecommendations(
     };
   });
 
-  // Sort by highest multi-timeframe score + volume weight
+  // Sort by highest multi-timeframe score + price momentum
   evaluatedCoins.sort((a, b) => {
     const scoreDiff = b.mtf.score - a.mtf.score;
     if (scoreDiff !== 0) return scoreDiff;
-    return b.cand.volumeM - a.cand.volumeM;
+    return b.cand.change24h - a.cand.change24h;
   });
 
-  // Select Top 3 best confluences
-  const top3 = evaluatedCoins.slice(0, 3);
-
-  return top3.map((item, idx) => {
+  // Return all evaluated recommendations sorted by highest score
+  return evaluatedCoins.map((item, idx) => {
     const cand = item.cand;
     const mtf = item.mtf;
     const entryOffsetMin = (idx % 2 === 0 ? 5 : 10);
     const entryDate = new Date(now.getTime() + entryOffsetMin * 60 * 1000);
-    const entryTimeStr = entryDate.toLocaleTimeString('pt-BR');
-    const exitDate = new Date(entryDate.getTime() + 15 * 60 * 1000);
-    const exitTimeStr = exitDate.toLocaleTimeString('pt-BR');
+    const entryTimeStr = entryDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const exitOffsetMin = idx === 0 ? 25 : idx === 1 ? 35 : 45;
+    const exitDate = new Date(entryDate.getTime() + exitOffsetMin * 60 * 1000);
+    const exitTimeStr = exitDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
     const reasoning = `Auditoria Multi-Período Binance (1D, 4H, 1H, 15M e 5M): ${cand.name} apresenta Confluência Técnica de ${mtf.score}% (Alta Probabilidade). Tendência macro em 4H/1D alinhada com médias móveis EMA 50/200. No gráfico de 1H, o RSI está em ${mtf.tf1h.rsi} (longe de sobrecompra), indicando espaço livre para valorização até a resistência técnica em $${formatNumber(item.targetPrice)}. Relação Risco/Retorno excelente de ${mtf.riskRewardRatio}.`;
 
@@ -461,7 +456,37 @@ function getFallbackPrice(symbol: string): number {
     'SEIUSDT': 0.48,
     'LTCUSDT': 88.50,
     'TONUSDT': 5.15,
-    'AAVEUSDT': 185.00
+    'AAVEUSDT': 185.00,
+    'AVNTUSDT': 0.325,
+    'HOMEUSDT': 0.184,
+    'NEIROUSDT': 0.00185,
+    'BANANAUSDT': 52.40,
+    'TURBOUSDT': 0.0084,
+    '1000SATSUSDT': 0.000245,
+    'NOTUSDT': 0.0078,
+    'TAOUSDT': 465.0,
+    'KASUSDT': 0.142,
+    'COWUSDT': 0.485,
+    'THEUSDT': 1.25,
+    'DRIFTUSDT': 1.68,
+    'VIRTUALUSDT': 1.15,
+    'AIXBTUSDT': 0.285,
+    'POPCATUSDT': 1.35,
+    'WIFUSDT': 2.15,
+    'PENDLEUSDT': 5.45,
+    'ENAUSDT': 0.685,
+    'ONDOUSDT': 1.12,
+    'JUPUSDT': 0.985,
+    'FLOKIUSDT': 0.000185,
+    'BONKUSDT': 0.000026,
+    'ACTUSDT': 0.42,
+    'PNUTUSDT': 0.88,
+    'KAIAUSDT': 0.22,
+    'MOVEUSDT': 0.75,
+    'MEUSDT': 1.95,
+    'ORDIUSDT': 38.5,
+    'IOUSDT': 2.65,
+    'ZKUSDT': 0.165
   };
   return map[symbol] || 10.0;
 }
