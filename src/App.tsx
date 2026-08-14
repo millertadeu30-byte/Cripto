@@ -60,18 +60,21 @@ export default function App() {
   const [trades, setTrades] = useState<Trade[]>(() => {
     try {
       const saved = localStorage.getItem('binance_assistant_trades');
-      if (saved) {
+      if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const valid = parsed.filter(t => t && typeof t === 'object' && t.id && t.symbol && t.coinName);
-          if (valid.length > 0) return valid;
+        if (Array.isArray(parsed)) {
+          return parsed.filter(t => t && typeof t === 'object' && t.id && t.symbol && t.coinName);
         }
       }
     } catch (e) {
       console.warn('Erro ao ler trades do localStorage:', e);
-      try { localStorage.removeItem('binance_assistant_trades'); } catch {}
     }
-    return INITIAL_TRADES;
+    const isInit = localStorage.getItem('binance_assistant_initialized');
+    if (!isInit) {
+      localStorage.setItem('binance_assistant_initialized', 'true');
+      return INITIAL_TRADES;
+    }
+    return [];
   });
 
   const tradesRef = useRef<Trade[]>(trades);
@@ -198,13 +201,21 @@ export default function App() {
     }
   });
 
+  const markLocalUpdate = () => {
+    try {
+      localStorage.setItem('binance_assistant_last_saved_ts', String(Date.now()));
+    } catch (e) {}
+  };
+
   const handleUpdateCashBalance = (amount: number, currency: 'BRL' | 'USDT') => {
     setCashBalance(amount);
     setCashBalanceCurrency(currency);
+    markLocalUpdate();
     try {
       localStorage.setItem('current_wallet_balance', amount.toFixed(4));
       localStorage.setItem('current_wallet_balance_currency', currency);
     } catch(e){}
+    saveToCloud(syncId, tradesRef.current, history, amount, currency, displayCurrency, goalPercent, true);
   };
   
   // Global display currency for synchronization across Header and PortfolioList
@@ -343,36 +354,47 @@ export default function App() {
     
     const unsubscribe = subscribeToCloud(syncId, (data) => {
       if (data) {
-        ignoreNextUpload.current = true;
-        if (data.trades) {
-          setTrades(data.trades);
-          try { localStorage.setItem('binance_assistant_trades', JSON.stringify(data.trades)); } catch(e){}
-        }
-        if (data.history) {
-          setHistory(data.history);
-          try { localStorage.setItem('binance_assistant_history', JSON.stringify(data.history)); } catch(e){}
-        }
-        if (data.cashBalance !== undefined) {
-          setCashBalance(data.cashBalance);
-          try { localStorage.setItem('current_wallet_balance', String(data.cashBalance)); } catch(e){}
-        }
-        if (data.cashBalanceCurrency) {
-          setCashBalanceCurrency(data.cashBalanceCurrency);
-          try { localStorage.setItem('current_wallet_balance_currency', data.cashBalanceCurrency); } catch(e){}
-        }
-        if (data.displayCurrency) {
-          setDisplayCurrency(data.displayCurrency);
-          try { localStorage.setItem('binance_assistant_display_currency', data.displayCurrency); } catch(e){}
-        }
-        if (data.goalPercent !== undefined) {
-          setGoalPercent(data.goalPercent);
-          try { localStorage.setItem('binance_assistant_goal_percent', String(data.goalPercent)); } catch(e){}
+        const localTs = parseInt(localStorage.getItem('binance_assistant_last_saved_ts') || '0', 10);
+        const cloudTs = data.updatedAtMs || (data.lastUpdated ? new Date(data.lastUpdated).getTime() : 0);
+
+        // Only overwrite local state if cloud data is as new or newer than local state
+        if (cloudTs >= localTs) {
+          ignoreNextUpload.current = true;
+          if (data.trades !== undefined) {
+            setTrades(data.trades);
+            try { localStorage.setItem('binance_assistant_trades', JSON.stringify(data.trades)); } catch(e){}
+          }
+          if (data.history !== undefined) {
+            setHistory(data.history);
+            try { localStorage.setItem('binance_assistant_history', JSON.stringify(data.history)); } catch(e){}
+          }
+          if (data.cashBalance !== undefined) {
+            setCashBalance(data.cashBalance);
+            try { localStorage.setItem('current_wallet_balance', String(data.cashBalance)); } catch(e){}
+          }
+          if (data.cashBalanceCurrency) {
+            setCashBalanceCurrency(data.cashBalanceCurrency);
+            try { localStorage.setItem('current_wallet_balance_currency', data.cashBalanceCurrency); } catch(e){}
+          }
+          if (data.displayCurrency) {
+            setDisplayCurrency(data.displayCurrency);
+            try { localStorage.setItem('binance_assistant_display_currency', data.displayCurrency); } catch(e){}
+          }
+          if (data.goalPercent !== undefined) {
+            setGoalPercent(data.goalPercent);
+            try { localStorage.setItem('binance_assistant_goal_percent', String(data.goalPercent)); } catch(e){}
+          }
+          setFirebaseStatus('synced');
+          pushLog('🟢 Carteira sincronizada com a nuvem!');
+        } else {
+          // Local is newer: upload current local state to cloud immediately
+          saveToCloud(syncId, tradesRef.current, history, cashBalance, cashBalanceCurrency, displayCurrency, goalPercent, true);
         }
         isCloudLoaded.current = true;
-        setFirebaseStatus('synced');
-        pushLog('🟢 Sincronização em tempo real do Firebase ativa!');
       } else {
         isCloudLoaded.current = true;
+        // First cloud sync: push existing local state to initialize cloud document
+        saveToCloud(syncId, tradesRef.current, history, cashBalance, cashBalanceCurrency, displayCurrency, goalPercent, true);
       }
     });
 
@@ -381,7 +403,6 @@ export default function App() {
 
   // Firestore Sync - Save local changes to cloud
   useEffect(() => {
-    // Only upload to cloud after cloud data has been loaded at least once
     if (!isCloudLoaded.current) {
       return;
     }
@@ -400,7 +421,7 @@ export default function App() {
         .catch(() => {
           setFirebaseStatus('offline');
         });
-    }, 1200); // 1200ms debounce to batch fast state modifications
+    }, 600); // Fast 600ms debounce
     
     return () => clearTimeout(timer);
   }, [trades, history, cashBalance, cashBalanceCurrency, displayCurrency, goalPercent, syncId]);
@@ -693,7 +714,12 @@ export default function App() {
       retracementPercent: initialRetracement
     };
 
-    setTrades(prev => [newTrade, ...prev]);
+    const updatedTrades = [newTrade, ...trades];
+    setTrades(updatedTrades);
+    markLocalUpdate();
+    try {
+      localStorage.setItem('binance_assistant_trades', JSON.stringify(updatedTrades));
+    } catch(e) {}
     pushLog(`📥 Operação registrada: Comprou ${newTrade.amount.toLocaleString()} ${newTrade.symbol} a ${newTrade.currency} ${newTrade.purchasePrice}.`);
     
     // Deduct totalInvested from cashBalance
@@ -704,6 +730,9 @@ export default function App() {
     }
     const newCashBalance = Math.max(0, cashBalance - deduction);
     handleUpdateCashBalance(newCashBalance, cashBalanceCurrency);
+
+    // Save state to cloud immediately
+    saveToCloud(syncId, updatedTrades, history, newCashBalance, cashBalanceCurrency, displayCurrency, goalPercent, true);
 
     // Auto trigger quick AI analysis of this new coin
     setTimeout(triggerMarketAnalysis, 1000);
@@ -733,8 +762,16 @@ export default function App() {
       pnlBrl
     };
 
-    setHistory(prev => [closedRecord, ...prev]);
-    setTrades(prev => prev.filter(t => t.id !== id));
+    const updatedHistory = [closedRecord, ...history];
+    const updatedTrades = trades.filter(t => t.id !== id);
+
+    setHistory(updatedHistory);
+    setTrades(updatedTrades);
+    markLocalUpdate();
+    try {
+      localStorage.setItem('binance_assistant_trades', JSON.stringify(updatedTrades));
+      localStorage.setItem('binance_assistant_history', JSON.stringify(updatedHistory));
+    } catch(e) {}
 
     const winEmoji = pnlBrl >= 0 ? '🎉 Lucro realizado!' : '📉 Perda cortada.';
     pushLog(`🔥 ${winEmoji} Moeda ${trade.symbol} vendida a ${exitPrice}. Resultado: ${pnlBrl >= 0 ? '+' : ''}R$ ${pnlBrl.toFixed(2)} (${closedRecord.finalPnlPercent.toFixed(2)}%)!`);
@@ -747,13 +784,20 @@ export default function App() {
     }
     const newCashBalance = cashBalance + refund;
     handleUpdateCashBalance(newCashBalance, cashBalanceCurrency);
+
+    saveToCloud(syncId, updatedTrades, updatedHistory, newCashBalance, cashBalanceCurrency, displayCurrency, goalPercent, true);
   };
 
   // Simply delete/remove from list
   const handleRemoveTrade = (id: string) => {
     const trade = trades.find(t => t.id === id);
     if (!trade) return;
-    setTrades(prev => prev.filter(t => t.id !== id));
+    const updatedTrades = trades.filter(t => t.id !== id);
+    setTrades(updatedTrades);
+    markLocalUpdate();
+    try {
+      localStorage.setItem('binance_assistant_trades', JSON.stringify(updatedTrades));
+    } catch(e) {}
     pushLog(`🗑️ Operação de ${trade.symbol} removida da lista de acompanhamento.`);
 
     // Refund the initial purchase totalInvested back to available cash balance
@@ -764,14 +808,19 @@ export default function App() {
     }
     const newCashBalance = cashBalance + refund;
     handleUpdateCashBalance(newCashBalance, cashBalanceCurrency);
+
+    saveToCloud(syncId, updatedTrades, history, newCashBalance, cashBalanceCurrency, displayCurrency, goalPercent, true);
   };
 
   // Edit trade values
   const handleEditTrade = (updatedTrade: Trade) => {
     const oldTrade = trades.find(t => t.id === updatedTrade.id);
-    setTrades(prevTrades => 
-      prevTrades.map(t => t.id === updatedTrade.id ? updatedTrade : t)
-    );
+    const updatedTrades = trades.map(t => t.id === updatedTrade.id ? updatedTrade : t);
+    setTrades(updatedTrades);
+    markLocalUpdate();
+    try {
+      localStorage.setItem('binance_assistant_trades', JSON.stringify(updatedTrades));
+    } catch(e) {}
     pushLog(`✏️ Operação ${updatedTrade.symbol} editada e atualizada!`);
 
     // Synchronize difference in totalInvested to cashBalance
@@ -788,6 +837,7 @@ export default function App() {
       const diff = newInvested - oldInvested;
       const newCashBalance = Math.max(0, cashBalance - diff);
       handleUpdateCashBalance(newCashBalance, cashBalanceCurrency);
+      saveToCloud(syncId, updatedTrades, history, newCashBalance, cashBalanceCurrency, displayCurrency, goalPercent, true);
     }
   };
 

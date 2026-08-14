@@ -96,12 +96,12 @@ export function getDeviceSyncId(): string {
   try {
     let syncId = localStorage.getItem('binance_assistant_sync_id');
     if (!syncId) {
-      syncId = 'BIA-PORTFOLIO-MASTER';
+      syncId = 'BIA-' + Math.random().toString(36).substring(2, 9).toUpperCase() + '-' + Date.now().toString(36).toUpperCase();
       localStorage.setItem('binance_assistant_sync_id', syncId);
     }
     return syncId;
   } catch (err) {
-    return 'BIA-PORTFOLIO-MASTER';
+    return 'BIA-USER-LOCAL';
   }
 }
 
@@ -114,6 +114,7 @@ export interface CloudData {
   displayCurrency?: 'BRL' | 'USDT' | 'BTC';
   goalPercent?: number;
   lastUpdated: string;
+  updatedAtMs?: number;
 }
 
 let lastSaveAttempt = 0;
@@ -126,16 +127,17 @@ export async function saveToCloud(
   cashBalance: number,
   cashBalanceCurrency: 'BRL' | 'USDT',
   displayCurrency: 'BRL' | 'USDT' | 'BTC',
-  goalPercent: number
+  goalPercent: number,
+  force: boolean = false
 ): Promise<boolean> {
   // If quota is exhausted or db is unavailable, immediately skip cloud write and use local persistence
   if (!db || isQuotaExhausted()) {
     return false;
   }
   
-  // Rate limit saves to cloud to at least 30 seconds apart to conserve write units
   const now = Date.now();
-  if (now - lastSaveAttempt < 30000) {
+  // Allow faster saves on user actions (debounced in caller)
+  if (!force && now - lastSaveAttempt < 1000) {
     return false;
   }
   lastSaveAttempt = now;
@@ -149,7 +151,8 @@ export async function saveToCloud(
       cashBalanceCurrency,
       displayCurrency,
       goalPercent,
-      lastUpdated: new Date().toISOString()
+      lastUpdated: new Date().toISOString(),
+      updatedAtMs: now
     }, { merge: true });
     return true;
   } catch (err: any) {
