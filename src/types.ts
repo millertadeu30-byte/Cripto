@@ -12,7 +12,8 @@ export interface Recommendation {
   symbol: string;
   coinName: string;
   baseSymbol?: string;
-  category?: 'Todas' | 'Memes' | 'Trending & Novas' | 'Layer 1 / Layer 2' | 'AI & Big Data' | 'DeFi & RWA' | 'Gaming & Infra';
+  category?: 'Todas' | 'Homologadas' | 'Memes' | 'Trending & Novas' | 'Layer 1 / Layer 2' | 'AI & Big Data' | 'DeFi & RWA' | 'Gaming & Infra';
+  isHomologated?: boolean;
   action: 'COMPRA' | 'VENDER' | 'MANTER';
   currentPrice: number;
   targetPrice: number;

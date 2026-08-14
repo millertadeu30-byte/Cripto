@@ -600,6 +600,14 @@ export default function AddTradeModal({
               <div className="flex items-center gap-1 overflow-x-auto pb-1 pt-0.5 scrollbar-thin">
                 <span className="text-[9px] text-gray-500 font-bold whitespace-nowrap uppercase">Atalhos:</span>
                 {[
+                  { base: 'BTC', label: '🛡️ BTC (Segura)' },
+                  { base: 'ETH', label: '🛡️ ETH (Segura)' },
+                  { base: 'SOL', label: '☀️ SOL' },
+                  { base: 'BNB', label: '🛡️ BNB' },
+                  { base: 'XRP', label: '💧 XRP' },
+                  { base: 'ADA', label: '🛡️ ADA' },
+                  { base: 'SUI', label: '⚡ SUI' },
+                  { base: 'NEAR', label: '🌐 NEAR' },
                   { base: 'PEPE', label: '🐸 PEPE' },
                   { base: 'DOGE', label: '🐕 DOGE' },
                   { base: 'SHIB', label: '🐶 SHIB' },
@@ -607,13 +615,7 @@ export default function AddTradeModal({
                   { base: 'NEIRO', label: '🐱 NEIRO' },
                   { base: 'AVNT', label: '🔥 AVNT' },
                   { base: 'HOME', label: '🏠 HOME' },
-                  { base: 'SUI', label: '⚡ SUI' },
-                  { base: 'NEAR', label: '🌐 NEAR' },
-                  { base: 'SOL', label: '☀️ SOL' },
                   { base: 'FET', label: '🤖 FET' },
-                  { base: 'BTC', label: '🪙 BTC' },
-                  { base: 'ETH', label: '💎 ETH' },
-                  { base: 'XRP', label: '💧 XRP' },
                 ].map(c => {
                   const currentBase = symbol.replace(/USDT$/, '').replace(/BRL$/, '');
                   const isSelected = currentBase === c.base;

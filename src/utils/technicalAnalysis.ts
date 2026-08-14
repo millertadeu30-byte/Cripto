@@ -3,7 +3,8 @@ import {
   formatCoinDisplayName, 
   isLeveragedOrFiat,
   KNOWN_BINANCE_NAMES,
-  getCoinCategory 
+  getCoinCategory,
+  isHomologatedCoin 
 } from './verifiedCoins';
 import { analyze5MinCandle } from './candleUtils';
 
@@ -390,6 +391,7 @@ export function generateAdvancedMultiTimeframeRecommendations(
       coinName: cand.name,
       baseSymbol: cand.base,
       category: getCoinCategory(cand.base),
+      isHomologated: isHomologatedCoin(cand.base),
       action: 'COMPRA',
       currentPrice: cand.livePrice,
       targetPrice: item.targetPrice,

@@ -198,6 +198,19 @@ export function getCoinCategory(base: string): VerifiedCoin['category'] {
   return 'Gaming & Infra';
 }
 
+export const HOMOLOGATED_COIN_BASES = new Set([
+  'BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'ADA', 'AVAX', 'LINK', 'SUI', 'NEAR',
+  'DOT', 'LTC', 'BCH', 'ATOM', 'TRX', 'TON', 'POL', 'UNI', 'AAVE', 'XLM',
+  'ICP', 'HBAR', 'FET', 'RENDER', 'ALGO', 'FTM', 'STX', 'INJ', 'APT', 'OP', 'ARB'
+]);
+
+export function isHomologatedCoin(baseOrSymbol: string): boolean {
+  if (!baseOrSymbol) return false;
+  const clean = baseOrSymbol.toUpperCase().trim();
+  const base = clean.replace(/USDT$/, '').replace(/BRL$/, '');
+  return HOMOLOGATED_COIN_BASES.has(base);
+}
+
 export function isVerifiedBinanceSpotCoin(symbol: string): boolean {
   if (!symbol) return false;
   const clean = symbol.toUpperCase().trim();
