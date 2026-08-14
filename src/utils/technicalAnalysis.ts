@@ -263,7 +263,9 @@ interface CandidateCoin {
 export function generateAdvancedMultiTimeframeRecommendations(
   prices: { [symbol: string]: number },
   activeTradeSymbols: string[] = [],
-  rawTickers: { symbol: string; lastPrice: string; priceChangePercent: string; quoteVolume: string }[] = []
+  rawTickers: { symbol: string; lastPrice: string; priceChangePercent: string; quoteVolume: string }[] = [],
+  customTargetProfitPct?: number,
+  customStopLossPct?: number
 ): Recommendation[] {
   const now = new Date();
   const blockedBases = new Set(
@@ -319,15 +321,24 @@ export function generateAdvancedMultiTimeframeRecommendations(
   const btcCandidate = candidateMap.get('BTC');
   const btcChange = btcCandidate ? btcCandidate.change24h : 0.8;
 
+  // Active target profit and stop loss percentages based on user's exact configuration
+  const baseTargetProfitPct = (customTargetProfitPct !== undefined && customTargetProfitPct > 0)
+    ? customTargetProfitPct
+    : 5.5;
+  const baseStopLossPct = (customStopLossPct !== undefined && customStopLossPct > 0)
+    ? customStopLossPct
+    : 3.0;
+
   // 3. Evaluate technical scores for all candidate coins
   const evaluatedCoins = Array.from(candidateMap.values()).map(cand => {
     const mtf = evaluateMultiTimeframeAnalysis(cand.symbol, cand.livePrice, cand.change24h, cand.volumeM, now, btcChange);
 
-    const targetProfitPct = Math.min(8.5, Math.max(4.0, (mtf.technicalResistance - cand.livePrice) / cand.livePrice * 100));
-    const stopLossPct = Math.min(4.5, Math.max(2.2, (cand.livePrice - mtf.technicalSupport) / cand.livePrice * 100));
+    const targetProfitPct = baseTargetProfitPct;
+    const stopLossPct = baseStopLossPct;
 
     const targetPrice = cand.livePrice * (1 + targetProfitPct / 100);
     const stopLossPrice = cand.livePrice * (1 - stopLossPct / 100);
+    const rrRatio = `1 : ${(targetProfitPct / (stopLossPct || 1)).toFixed(1)}`;
 
     return {
       cand,
@@ -335,7 +346,8 @@ export function generateAdvancedMultiTimeframeRecommendations(
       targetPrice,
       stopLossPrice,
       targetProfitPct: parseFloat(targetProfitPct.toFixed(2)),
-      stopLossPct: parseFloat(stopLossPct.toFixed(2))
+      stopLossPct: parseFloat(stopLossPct.toFixed(2)),
+      riskRewardRatio: rrRatio
     };
   });
 
@@ -384,7 +396,7 @@ export function generateAdvancedMultiTimeframeRecommendations(
     const exitDate = new Date(entryCandleMs + exitOffsetMin * 60 * 1000);
     const exitTimeStr = exitDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
-    const reasoning = `Auditoria Multi-Período Binance (1D, 4H, 1H, 15M e 5M): ${cand.name} apresenta Confluência Técnica de ${mtf.score}% (Alta Probabilidade). Tendência macro em 4H/1D alinhada com médias móveis EMA 50/200. No gráfico de 1H, o RSI está em ${mtf.tf1h.rsi} (longe de sobrecompra), indicando espaço livre para valorização até a resistência técnica em $${formatNumber(item.targetPrice)}. Relação Risco/Retorno excelente de ${mtf.riskRewardRatio}.`;
+    const reasoning = `Auditoria Multi-Período Binance (1D, 4H, 1H, 15M e 5M): ${cand.name} apresenta Confluência Técnica de ${mtf.score}% (Alta Probabilidade). Tendência macro em 4H/1D alinhada com médias móveis EMA 50/200. No gráfico de 1H, o RSI está em ${mtf.tf1h.rsi} (longe de sobrecompra), indicando espaço livre para atingir sua meta configurada de +${item.targetProfitPct}% em $${formatNumber(item.targetPrice)} com proteção Stop Loss em $${formatNumber(item.stopLossPrice)} (-${item.stopLossPct}%). Relação Risco/Retorno excelente de ${item.riskRewardRatio}.`;
 
     return {
       symbol: cand.symbol,
@@ -400,8 +412,8 @@ export function generateAdvancedMultiTimeframeRecommendations(
       timeframe: 'Multi-Período (5M a 4H)',
       confluenceScore: mtf.score,
       macroTrend: mtf.macroTrendSummary,
-      riskRewardRatio: mtf.riskRewardRatio,
-      technicalSupport: mtf.technicalSupport,
+      riskRewardRatio: item.riskRewardRatio,
+      technicalSupport: item.stopLossPrice,
       technicalResistance: item.targetPrice,
       recommendedEntryTime: entryTimeStr,
       recommendedExitTime: exitTimeStr,
@@ -456,8 +468,8 @@ export function generateAdvancedMultiTimeframeRecommendations(
       },
       recommendedEntryCandleLabel: `Vela das ${entryTimeStr} (Confirmação Multi-Timeframe)`,
       candlePatternName: `Pullback em Suporte com Confirmação MTF (${mtf.score}% Confluência)`,
-      priceActionStructure: `Suporte Institucional: $${formatNumber(mtf.technicalSupport)} | Resistência Alvo: $${formatNumber(item.targetPrice)}`,
-      candleTechnicalDetail: `Score Confluência: ${mtf.score}% | R:R ${mtf.riskRewardRatio} | RSI 1H: ${mtf.tf1h.rsi} | Volume: $${cand.volumeM.toFixed(1)}M USDT 24h`,
+      priceActionStructure: `Suporte/Stop Protegido: $${formatNumber(item.stopLossPrice)} | Alvo de Lucro: $${formatNumber(item.targetPrice)}`,
+      candleTechnicalDetail: `Meta: +${item.targetProfitPct}% | Stop: -${item.stopLossPct}% | R:R ${item.riskRewardRatio} | RSI 1H: ${mtf.tf1h.rsi} | Volume: $${cand.volumeM.toFixed(1)}M USDT 24h`,
       reasoning
     };
   });

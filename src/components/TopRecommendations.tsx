@@ -12,6 +12,10 @@ interface TopRecommendationsProps {
   isLoading: boolean;
   onBuyClick: (rec: Recommendation) => void;
   usdtBrl?: number;
+  gainPercent?: number;
+  lossPercent?: number;
+  onChangeGainPercent?: (gain: number) => void;
+  onChangeLossPercent?: (loss: number) => void;
 }
 
 type CategoryType = 'Homologadas' | 'Todas' | 'Memes' | 'Trending & Novas' | 'Layer 1 / Layer 2' | 'AI & Big Data' | 'DeFi & RWA';
@@ -56,7 +60,16 @@ const POPULAR_QUICK_COINS = [
   { base: 'TAO', label: '🧠 TAO', category: 'AI & Big Data' }
 ];
 
-export default function TopRecommendations({ recommendations, isLoading, onBuyClick, usdtBrl = 5.62 }: TopRecommendationsProps) {
+export default function TopRecommendations({
+  recommendations,
+  isLoading,
+  onBuyClick,
+  usdtBrl = 5.62,
+  gainPercent = 5.5,
+  lossPercent = 3.0,
+  onChangeGainPercent,
+  onChangeLossPercent
+}: TopRecommendationsProps) {
   // 5m Candle timer
   const [candleInfo, setCandleInfo] = useState(() => analyze5MinCandle());
   const [selectedTfTab, setSelectedTfTab] = useState<{ [symbol: string]: '5M' | '15M' | '1H' | '4H' | '1D' }>({});
@@ -66,6 +79,7 @@ export default function TopRecommendations({ recommendations, isLoading, onBuyCl
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showFullRadar, setShowFullRadar] = useState<boolean>(false);
   const [isNightBannerExpanded, setIsNightBannerExpanded] = useState<boolean>(false);
+  const [isSectionMinimized, setIsSectionMinimized] = useState<boolean>(false);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -74,9 +88,37 @@ export default function TopRecommendations({ recommendations, isLoading, onBuyCl
     return () => clearInterval(timer);
   }, []);
 
-  // Custom Gain % and Loss % configured by user
-  const [customGainPercent, setCustomGainPercent] = useState<string>('5.5');
-  const [customLossPercent, setCustomLossPercent] = useState<string>('3.0');
+  // Custom Gain % and Loss % configured by user - synced with global app state
+  const [customGainPercent, setCustomGainPercent] = useState<string>(gainPercent.toString());
+  const [customLossPercent, setCustomLossPercent] = useState<string>(lossPercent.toString());
+
+  useEffect(() => {
+    if (gainPercent !== undefined) {
+      setCustomGainPercent(gainPercent.toString());
+    }
+  }, [gainPercent]);
+
+  useEffect(() => {
+    if (lossPercent !== undefined) {
+      setCustomLossPercent(lossPercent.toString());
+    }
+  }, [lossPercent]);
+
+  const handleGainPercentChange = (val: string) => {
+    setCustomGainPercent(val);
+    const num = parseFloat(val.replace(',', '.'));
+    if (!isNaN(num) && num > 0) {
+      onChangeGainPercent?.(num);
+    }
+  };
+
+  const handleLossPercentChange = (val: string) => {
+    setCustomLossPercent(val);
+    const num = parseFloat(val.replace(',', '.'));
+    if (!isNaN(num) && num > 0) {
+      onChangeLossPercent?.(num);
+    }
+  };
 
   // Per-signal investment simulation
   const [signalInvestments, setSignalInvestments] = useState<{ [symbol: string]: string }>({});
@@ -153,127 +195,158 @@ export default function TopRecommendations({ recommendations, isLoading, onBuyCl
   return (
     <div id="top-recommendations-section" className="bg-[#181a20] rounded-2xl border border-gray-800 p-4 sm:p-5 space-y-4">
       
-      {/* Header with Title & Profit/Loss settings */}
+      {/* Header with Title & Profit/Loss settings & Minimize Button */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-gray-800 pb-3 gap-3">
-        <div>
+        <div className="flex items-center justify-between w-full sm:w-auto gap-2">
           <div className="flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-[#f0b90b]" />
-            <h3 className="text-base sm:text-lg font-bold text-white">
-              Recomendações e Radar de Altcoins & Memes
-            </h3>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base sm:text-lg font-bold text-white">
+                  Radar de Oportunidades Binance
+                </h3>
+                {selectedCategory === 'Homologadas' && (
+                  <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-1.5 py-0.5 rounded-full font-bold flex items-center gap-1">
+                    🛡️ Noite Segura
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Varredura técnica em tempo real na Binance Spot (incluindo Pepe, Memes e Altcoins).
+              </p>
+            </div>
           </div>
-          <p className="text-xs text-gray-400 mt-0.5">
-            Varredura técnica em tempo real na Binance Spot (incluindo Pepe, Memecoins, L1/L2 e Novas Altcoins).
-          </p>
+
+          <button
+            onClick={() => setIsSectionMinimized(prev => !prev)}
+            className="sm:hidden text-gray-400 hover:text-white p-1 rounded bg-[#1e2026] border border-gray-800 text-xs flex items-center gap-1 shrink-0"
+            title={isSectionMinimized ? "Expandir Radar" : "Minimizar Radar"}
+          >
+            <span className="text-[11px] font-bold">{isSectionMinimized ? "Expandir" : "Minimizar"}</span>
+            {isSectionMinimized ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+          </button>
         </div>
 
-        {/* Target Gain & Stop Loss Controls */}
-        <div className="flex items-center gap-2 bg-[#1e2026] px-3 py-1.5 rounded-xl border border-gray-800 self-start sm:self-auto">
-          <div className="flex items-center gap-1 text-xs text-gray-300 font-bold">
-            <Sliders className="w-3.5 h-3.5 text-[#f0b90b]" />
-            <span className="hidden sm:inline">Alvos:</span>
+        <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+          {/* Target Gain & Stop Loss Controls - Synced & Persisted */}
+          <div className="flex items-center gap-2 bg-[#1e2026] px-3 py-1.5 rounded-xl border border-gray-800">
+            <div className="flex items-center gap-1 text-xs text-gray-300 font-bold">
+              <Sliders className="w-3.5 h-3.5 text-[#f0b90b]" />
+              <span className="hidden sm:inline">Metas:</span>
+            </div>
+
+            <div className="flex items-center gap-1 bg-gray-900 px-2 py-0.5 rounded border border-[#0ecb81]/30 text-xs">
+              <span className="text-[#0ecb81] font-bold">Lucro</span>
+              <input
+                type="number"
+                step="0.1"
+                min="0.1"
+                max="500"
+                value={customGainPercent}
+                onChange={(e) => handleGainPercentChange(e.target.value)}
+                className="w-10 bg-transparent text-white font-mono font-bold text-xs text-center focus:outline-none"
+              />
+              <span className="text-gray-400">%</span>
+            </div>
+
+            <div className="flex items-center gap-1 bg-gray-900 px-2 py-0.5 rounded border border-[#f6465d]/30 text-xs">
+              <span className="text-[#f6465d] font-bold">Stop</span>
+              <input
+                type="number"
+                step="0.1"
+                min="0.1"
+                max="90"
+                value={customLossPercent}
+                onChange={(e) => handleLossPercentChange(e.target.value)}
+                className="w-10 bg-transparent text-white font-mono font-bold text-xs text-center focus:outline-none"
+              />
+              <span className="text-gray-400">%</span>
+            </div>
           </div>
 
-          <div className="flex items-center gap-1 bg-gray-900 px-2 py-0.5 rounded border border-[#0ecb81]/30 text-xs">
-            <span className="text-[#0ecb81] font-bold">Lucro</span>
-            <input
-              type="number"
-              step="0.1"
-              min="0.1"
-              max="500"
-              value={customGainPercent}
-              onChange={(e) => setCustomGainPercent(e.target.value)}
-              className="w-10 bg-transparent text-white font-mono font-bold text-xs text-center focus:outline-none"
-            />
-            <span className="text-gray-400">%</span>
-          </div>
-
-          <div className="flex items-center gap-1 bg-gray-900 px-2 py-0.5 rounded border border-[#f6465d]/30 text-xs">
-            <span className="text-[#f6465d] font-bold">Stop</span>
-            <input
-              type="number"
-              step="0.1"
-              min="0.1"
-              max="90"
-              value={customLossPercent}
-              onChange={(e) => setCustomLossPercent(e.target.value)}
-              className="w-10 bg-transparent text-white font-mono font-bold text-xs text-center focus:outline-none"
-            />
-            <span className="text-gray-400">%</span>
-          </div>
+          <button
+            onClick={() => setIsSectionMinimized(prev => !prev)}
+            className="hidden sm:flex text-gray-400 hover:text-white p-1.5 rounded-lg bg-[#1e2026] border border-gray-800 text-xs items-center gap-1 shrink-0 cursor-pointer"
+            title={isSectionMinimized ? "Expandir Radar" : "Minimizar Radar"}
+          >
+            <span className="text-[11px] font-bold">{isSectionMinimized ? "Expandir" : "Minimizar"}</span>
+            {isSectionMinimized ? <ChevronDown className="w-4 h-4 text-[#f0b90b]" /> : <ChevronUp className="w-4 h-4 text-gray-400" />}
+          </button>
         </div>
       </div>
 
-      {/* Category Tabs: Compact, Wrapped & Mobile Optimized */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] font-bold text-gray-400 flex items-center gap-1">
-            <span>Filtrar Mercado:</span>
-            {selectedCategory !== 'Todas' && (
-              <span className="text-[#f0b90b] font-mono">({selectedCategory})</span>
-            )}
-          </span>
+      {!isSectionMinimized && (
+        <div className="space-y-4">
+          {/* Category Tabs: Compact, Wrapped & Mobile Optimized */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <span className="text-[11px] font-bold text-gray-400 flex items-center gap-1">
+                <span>Filtrar Mercado:</span>
+                {selectedCategory !== 'Todas' && (
+                  <span className="text-[#f0b90b] font-mono">({selectedCategory})</span>
+                )}
+              </span>
 
-          {/* Quick reset button if any filter is active */}
-          {(selectedCategory !== 'Todas' || searchQuery !== '') && (
-            <button
-              onClick={() => {
-                setSelectedCategory('Todas');
-                setSearchQuery('');
-              }}
-              className="text-[11px] text-[#f0b90b] hover:underline flex items-center gap-1 font-bold cursor-pointer bg-[#f0b90b]/10 px-2 py-0.5 rounded border border-[#f0b90b]/30"
-            >
-              <span>✕ Ver Todas as Moedas</span>
-            </button>
-          )}
-        </div>
-
-        {/* Responsive grid / wrap of category chips so nothing gets hidden or cut on phone */}
-        <div className="flex flex-wrap gap-1.5 sm:gap-2">
-          {CATEGORY_TABS.map(tab => {
-            const isActive = selectedCategory === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => {
-                  // Toggle behavior: if already active, revert to 'Todas'
-                  if (isActive && tab.id !== 'Todas') {
+              {/* Quick reset button if any filter is active */}
+              {(selectedCategory !== 'Todas' || searchQuery !== '') && (
+                <button
+                  onClick={() => {
                     setSelectedCategory('Todas');
-                  } else {
-                    setSelectedCategory(tab.id);
-                  }
-                  setSearchQuery('');
-                }}
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
-                  isActive 
-                    ? tab.id === 'Homologadas'
-                      ? 'bg-emerald-500 text-black border-emerald-400 shadow-md shadow-emerald-500/20 ring-2 ring-emerald-400/40 font-extrabold'
-                      : 'bg-[#f0b90b] text-black border-[#f0b90b] shadow-md shadow-yellow-500/10 font-extrabold'
-                    : 'bg-[#1e2026] text-gray-300 border-gray-800 hover:text-white hover:border-gray-700 active:scale-95'
-                }`}
-                title={tab.fullLabel}
-              >
-                <span>{tab.icon}</span>
-                <span>{tab.shortLabel}</span>
-                {tab.badge && (
-                  <span className={`text-[9px] px-1 py-0.2 rounded font-extrabold ${
-                    isActive 
-                      ? 'bg-black/20 text-black' 
-                      : (tab.badgeColor || 'bg-gray-700 text-gray-300')
-                  }`}>
-                    {tab.badge}
-                  </span>
-                )}
-                {isActive && tab.id !== 'Todas' && (
-                  <span className="text-[10px] ml-0.5 bg-black/20 text-black px-1 rounded font-mono font-black">
-                    ✕
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+                    setSearchQuery('');
+                  }}
+                  className="text-[11px] text-[#f0b90b] hover:text-white flex items-center gap-1 font-bold cursor-pointer bg-[#f0b90b]/15 px-2.5 py-1 rounded-lg border border-[#f0b90b]/40 transition-colors shadow-sm"
+                >
+                  <span>✕ Desativar Filtro / Ver Todas as Moedas</span>
+                </button>
+              )}
+            </div>
+
+            {/* Responsive grid / wrap of category chips so nothing gets hidden or cut on phone */}
+            <div className="flex flex-wrap gap-1.5 sm:gap-2">
+              {CATEGORY_TABS.map(tab => {
+                const isActive = selectedCategory === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => {
+                      // Toggle behavior: if already active and not 'Todas', revert to 'Todas'
+                      if (isActive && tab.id !== 'Todas') {
+                        setSelectedCategory('Todas');
+                      } else {
+                        setSelectedCategory(tab.id);
+                      }
+                      setSearchQuery('');
+                    }}
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
+                      isActive 
+                        ? tab.id === 'Homologadas'
+                          ? 'bg-emerald-500 text-black border-emerald-400 shadow-md shadow-emerald-500/20 ring-2 ring-emerald-400/40 font-extrabold'
+                          : 'bg-[#f0b90b] text-black border-[#f0b90b] shadow-md shadow-yellow-500/10 font-extrabold'
+                        : 'bg-[#1e2026] text-gray-300 border-gray-800 hover:text-white hover:border-gray-700 active:scale-95'
+                    }`}
+                    title={tab.fullLabel}
+                  >
+                    <span>{tab.icon}</span>
+                    <span>{tab.shortLabel}</span>
+                    {tab.badge && (
+                      <span className={`text-[9px] px-1 py-0.2 rounded font-extrabold ${
+                        isActive 
+                          ? 'bg-black/20 text-black' 
+                          : (tab.badgeColor || 'bg-gray-700 text-gray-300')
+                      }`}>
+                        {tab.badge}
+                      </span>
+                    )}
+                    {isActive && tab.id !== 'Todas' && (
+                      <span className="text-[10px] ml-0.5 bg-black/20 text-black px-1 rounded font-mono font-black" title="Clique para desativar">
+                        ✕
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
       {/* Quick Search & Popular Altcoin / Meme Chips */}
       <div className="bg-[#1e2026]/70 border border-gray-800 rounded-xl p-2.5 space-y-2">
@@ -686,6 +759,8 @@ export default function TopRecommendations({ recommendations, isLoading, onBuyCl
           </div>
         )}
       </div>
+        </div>
+      )}
     </div>
   );
 }

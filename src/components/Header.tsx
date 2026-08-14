@@ -18,6 +18,14 @@ interface HeaderProps {
   cashBalance: number;
   cashBalanceCurrency: 'BRL' | 'USDT';
   onUpdateCashBalance?: (amount: number, currency: 'BRL' | 'USDT') => void;
+  gainPercent?: number;
+  lossPercent?: number;
+  onChangeGainPercent?: (gain: number) => void;
+  onChangeLossPercent?: (loss: number) => void;
+  calcPrice?: string;
+  onChangeCalcPrice?: (price: string) => void;
+  calcInvestAmount?: string;
+  onChangeCalcInvestAmount?: (amount: string) => void;
 }
 
 export default function Header({
@@ -35,18 +43,76 @@ export default function Header({
   onChangeDisplayCurrency,
   cashBalance,
   cashBalanceCurrency,
-  onUpdateCashBalance
+  onUpdateCashBalance,
+  gainPercent = 5.5,
+  lossPercent = 3.0,
+  onChangeGainPercent,
+  onChangeLossPercent,
+  calcPrice: externalCalcPrice,
+  onChangeCalcPrice,
+  calcInvestAmount: externalCalcInvestAmount,
+  onChangeCalcInvestAmount
 }: HeaderProps) {
   const [hideBalances, setHideBalances] = useState(false);
   const [activeTab, setActiveTab] = useState<'geral' | 'spot' | 'alpha' | 'fundos'>('spot');
   const [showCurrencyDropdown, setShowCurrencyDropdown] = useState(false);
 
-  // Quick OCO Calculator states (Foto 1 Requirement)
-  const [calcPrice, setCalcPrice] = useState<string>('0.0467');
-  const [calcGainPct, setCalcGainPct] = useState<string>('5.5');
-  const [calcLossPct, setCalcLossPct] = useState<string>('3.0');
-  const [calcInvestAmount, setCalcInvestAmount] = useState<string>('100');
+  // Quick OCO Calculator states (Foto 1 Requirement - Synced with global targets & persisted)
+  const [localCalcPrice, setLocalCalcPrice] = useState<string>(externalCalcPrice || '0.0467');
+  const [localGainPct, setLocalGainPct] = useState<string>(gainPercent.toString());
+  const [localLossPct, setLocalLossPct] = useState<string>(lossPercent.toString());
+  const [localInvestAmount, setLocalInvestAmount] = useState<string>(externalCalcInvestAmount || '100');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (externalCalcPrice !== undefined && externalCalcPrice !== localCalcPrice) {
+      setLocalCalcPrice(externalCalcPrice);
+    }
+  }, [externalCalcPrice]);
+
+  useEffect(() => {
+    if (gainPercent !== undefined) {
+      setLocalGainPct(gainPercent.toString());
+    }
+  }, [gainPercent]);
+
+  useEffect(() => {
+    if (lossPercent !== undefined) {
+      setLocalLossPct(lossPercent.toString());
+    }
+  }, [lossPercent]);
+
+  useEffect(() => {
+    if (externalCalcInvestAmount !== undefined && externalCalcInvestAmount !== localInvestAmount) {
+      setLocalInvestAmount(externalCalcInvestAmount);
+    }
+  }, [externalCalcInvestAmount]);
+
+  const handleCalcGainChange = (val: string) => {
+    setLocalGainPct(val);
+    const num = parseFloat(val.replace(',', '.'));
+    if (!isNaN(num) && num > 0) {
+      onChangeGainPercent?.(num);
+    }
+  };
+
+  const handleCalcLossChange = (val: string) => {
+    setLocalLossPct(val);
+    const num = parseFloat(val.replace(',', '.'));
+    if (!isNaN(num) && num > 0) {
+      onChangeLossPercent?.(num);
+    }
+  };
+
+  const handleCalcPriceChange = (val: string) => {
+    setLocalCalcPrice(val);
+    onChangeCalcPrice?.(val);
+  };
+
+  const handleCalcInvestChange = (val: string) => {
+    setLocalInvestAmount(val);
+    onChangeCalcInvestAmount?.(val);
+  };
 
   // Cash balance inline editor states
   const [isEditingCash, setIsEditingCash] = useState(false);
@@ -101,10 +167,10 @@ export default function Header({
 
   // Calculation logic for Quick OCO Calculator
   const parseVal = (str: string) => parseFloat(str.replace(',', '.')) || 0;
-  const numEntryPrice = parseVal(calcPrice);
-  const numGainPct = parseVal(calcGainPct);
-  const numLossPct = parseVal(calcLossPct);
-  const numInvestAmount = parseVal(calcInvestAmount);
+  const numEntryPrice = parseVal(localCalcPrice);
+  const numGainPct = parseVal(localGainPct);
+  const numLossPct = parseVal(localLossPct);
+  const numInvestAmount = parseVal(localInvestAmount);
 
   const calcTargetVal = numEntryPrice > 0 ? numEntryPrice * (1 + numGainPct / 100) : 0;
   const calcStopVal = numEntryPrice > 0 ? numEntryPrice * (1 - numLossPct / 100) : 0;
@@ -616,9 +682,14 @@ export default function Header({
                   Calculadora Rápida OCO Binance
                 </h3>
               </div>
-              <span className="text-[9px] bg-[#f0b90b]/10 text-[#f0b90b] font-mono border border-[#f0b90b]/20 px-1.5 py-0.5 rounded font-extrabold uppercase">
-                Copiar & Colar 1-Clique
-              </span>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[9px] bg-emerald-500/15 text-emerald-300 font-mono border border-emerald-500/30 px-1.5 py-0.5 rounded font-bold flex items-center gap-1">
+                  <Check className="w-2.5 h-2.5" /> Metas Gravadas
+                </span>
+                <span className="text-[9px] bg-[#f0b90b]/10 text-[#f0b90b] font-mono border border-[#f0b90b]/20 px-1.5 py-0.5 rounded font-extrabold uppercase">
+                  Copiar & Colar 1-Clique
+                </span>
+              </div>
             </div>
 
             {/* Form Inputs Grid */}
@@ -627,8 +698,8 @@ export default function Header({
                 <label className="text-[9.5px] font-bold text-gray-400 block mb-1">Preço Entrada</label>
                 <input
                   type="text"
-                  value={calcPrice}
-                  onChange={(e) => setCalcPrice(e.target.value)}
+                  value={localCalcPrice}
+                  onChange={(e) => handleCalcPriceChange(e.target.value)}
                   placeholder="0.0467"
                   className="w-full bg-gray-900 border border-gray-700/80 rounded px-2 py-1 text-xs font-mono font-bold text-white focus:outline-none focus:border-[#f0b90b]"
                 />
@@ -638,8 +709,8 @@ export default function Header({
                 <label className="text-[9.5px] font-bold text-[#0ecb81] block mb-1">Ganho % (+)</label>
                 <input
                   type="text"
-                  value={calcGainPct}
-                  onChange={(e) => setCalcGainPct(e.target.value)}
+                  value={localGainPct}
+                  onChange={(e) => handleCalcGainChange(e.target.value)}
                   placeholder="5.5"
                   className="w-full bg-gray-900 border border-emerald-500/40 rounded px-2 py-1 text-xs font-mono font-bold text-[#0ecb81] focus:outline-none focus:border-[#0ecb81]"
                 />
@@ -649,8 +720,8 @@ export default function Header({
                 <label className="text-[9.5px] font-bold text-[#f6465d] block mb-1">Perda % (-)</label>
                 <input
                   type="text"
-                  value={calcLossPct}
-                  onChange={(e) => setCalcLossPct(e.target.value)}
+                  value={localLossPct}
+                  onChange={(e) => handleCalcLossChange(e.target.value)}
                   placeholder="3.0"
                   className="w-full bg-gray-900 border border-red-500/40 rounded px-2 py-1 text-xs font-mono font-bold text-[#f6465d] focus:outline-none focus:border-[#f6465d]"
                 />
@@ -661,8 +732,8 @@ export default function Header({
               <label className="text-[9.5px] font-bold text-gray-400 block mb-1">Aporte Desejado (Opcional - $ / R$)</label>
               <input
                 type="text"
-                value={calcInvestAmount}
-                onChange={(e) => setCalcInvestAmount(e.target.value)}
+                value={localInvestAmount}
+                onChange={(e) => handleCalcInvestChange(e.target.value)}
                 placeholder="100"
                 className="w-full bg-gray-900 border border-gray-700/80 rounded px-2 py-1 text-xs font-mono font-bold text-yellow-400 focus:outline-none focus:border-[#f0b90b]"
               />

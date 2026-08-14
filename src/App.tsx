@@ -102,7 +102,7 @@ export default function App() {
       console.warn('Erro ao ler recomendações do localStorage:', e);
       try { localStorage.removeItem('binance_assistant_recommendations'); } catch {}
     }
-    return generateAdvancedMultiTimeframeRecommendations({});
+    return generateAdvancedMultiTimeframeRecommendations({}, [], [], 5.5, 3.0);
   });
 
   const [history, setHistory] = useState<any[]>(() => {
@@ -171,15 +171,61 @@ export default function App() {
   const [goalPercent, setGoalPercent] = useState<number>(() => {
     try {
       const saved = localStorage.getItem('binance_assistant_goal_percent');
-      return saved ? Number(saved) : 5; // default 5%
+      return saved ? Number(saved) : 5.5; // default 5.5%
     } catch (e) {
-      return 5;
+      return 5.5;
+    }
+  });
+
+  const [stopLossPercent, setStopLossPercent] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('binance_assistant_stop_loss_percent');
+      return saved ? Number(saved) : 3.0; // default 3.0%
+    } catch (e) {
+      return 3.0;
+    }
+  });
+
+  const [calcPrice, setCalcPrice] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('binance_assistant_calc_price');
+      return saved || '0.0467';
+    } catch (e) {
+      return '0.0467';
+    }
+  });
+
+  const [calcInvestAmount, setCalcInvestAmount] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('binance_assistant_calc_invest_amount');
+      return saved || '100';
+    } catch (e) {
+      return '100';
     }
   });
 
   const handleGoalPercentChange = (val: number) => {
     setGoalPercent(val);
+    markLocalUpdate();
     try { localStorage.setItem('binance_assistant_goal_percent', String(val)); } catch(e){}
+  };
+
+  const handleStopLossPercentChange = (val: number) => {
+    setStopLossPercent(val);
+    markLocalUpdate();
+    try { localStorage.setItem('binance_assistant_stop_loss_percent', String(val)); } catch(e){}
+  };
+
+  const handleCalcPriceChange = (val: string) => {
+    setCalcPrice(val);
+    markLocalUpdate();
+    try { localStorage.setItem('binance_assistant_calc_price', val); } catch(e){}
+  };
+
+  const handleCalcInvestAmountChange = (val: string) => {
+    setCalcInvestAmount(val);
+    markLocalUpdate();
+    try { localStorage.setItem('binance_assistant_calc_invest_amount', val); } catch(e){}
   };
 
   // Global wallet cash balance state synchronized with Header and AddTradeModal
@@ -380,21 +426,34 @@ export default function App() {
             setDisplayCurrency(data.displayCurrency);
             try { localStorage.setItem('binance_assistant_display_currency', data.displayCurrency); } catch(e){}
           }
-          if (data.goalPercent !== undefined) {
-            setGoalPercent(data.goalPercent);
-            try { localStorage.setItem('binance_assistant_goal_percent', String(data.goalPercent)); } catch(e){}
+          if (data.targetGainPercent !== undefined || data.goalPercent !== undefined) {
+            const g = data.targetGainPercent !== undefined ? data.targetGainPercent : data.goalPercent!;
+            setGoalPercent(g);
+            try { localStorage.setItem('binance_assistant_goal_percent', String(g)); } catch(e){}
+          }
+          if (data.stopLossPercent !== undefined) {
+            setStopLossPercent(data.stopLossPercent);
+            try { localStorage.setItem('binance_assistant_stop_loss_percent', String(data.stopLossPercent)); } catch(e){}
+          }
+          if (data.calcPrice !== undefined) {
+            setCalcPrice(data.calcPrice);
+            try { localStorage.setItem('binance_assistant_calc_price', data.calcPrice); } catch(e){}
+          }
+          if (data.calcInvestAmount !== undefined) {
+            setCalcInvestAmount(data.calcInvestAmount);
+            try { localStorage.setItem('binance_assistant_calc_invest_amount', data.calcInvestAmount); } catch(e){}
           }
           setFirebaseStatus('synced');
-          pushLog('🟢 Carteira sincronizada com a nuvem!');
+          pushLog('🟢 Carteira e Metas sincronizadas com a nuvem!');
         } else {
           // Local is newer: upload current local state to cloud immediately
-          saveToCloud(syncId, tradesRef.current, history, cashBalance, cashBalanceCurrency, displayCurrency, goalPercent, true);
+          saveToCloud(syncId, tradesRef.current, history, cashBalance, cashBalanceCurrency, displayCurrency, goalPercent, true, stopLossPercent, calcPrice, calcInvestAmount);
         }
         isCloudLoaded.current = true;
       } else {
         isCloudLoaded.current = true;
         // First cloud sync: push existing local state to initialize cloud document
-        saveToCloud(syncId, tradesRef.current, history, cashBalance, cashBalanceCurrency, displayCurrency, goalPercent, true);
+        saveToCloud(syncId, tradesRef.current, history, cashBalance, cashBalanceCurrency, displayCurrency, goalPercent, true, stopLossPercent, calcPrice, calcInvestAmount);
       }
     });
 
@@ -414,7 +473,7 @@ export default function App() {
     
     setFirebaseStatus('syncing');
     const timer = setTimeout(() => {
-      saveToCloud(syncId, trades, history, cashBalance, cashBalanceCurrency, displayCurrency, goalPercent)
+      saveToCloud(syncId, trades, history, cashBalance, cashBalanceCurrency, displayCurrency, goalPercent, false, stopLossPercent, calcPrice, calcInvestAmount)
         .then((saved) => {
           setFirebaseStatus(saved ? 'synced' : 'offline');
         })
@@ -424,7 +483,7 @@ export default function App() {
     }, 600); // Fast 600ms debounce
     
     return () => clearTimeout(timer);
-  }, [trades, history, cashBalance, cashBalanceCurrency, displayCurrency, goalPercent, syncId]);
+  }, [trades, history, cashBalance, cashBalanceCurrency, displayCurrency, goalPercent, stopLossPercent, calcPrice, calcInvestAmount, syncId]);
 
   // Handler for user switching their Sync ID
   const handleSyncIdChange = (newSyncId: string) => {
@@ -659,14 +718,20 @@ export default function App() {
       // 2. Generate Top 3 Recommendations dynamically across verified Binance Spot coins with Multi-Timeframe Confluence
       const activeList = updatedTradesList.length > 0 ? updatedTradesList : tradesRef.current;
       const activeSymbols = activeList.map(t => t.symbol);
-      const smartRecs = generateAdvancedMultiTimeframeRecommendations(marketPrices, activeSymbols, rawBinanceTickersRef.current);
+      const smartRecs = generateAdvancedMultiTimeframeRecommendations(
+        marketPrices, 
+        activeSymbols, 
+        rawBinanceTickersRef.current,
+        goalPercent,
+        stopLossPercent
+      );
       setRecommendations(smartRecs);
 
       logsToPush.forEach(log => pushLog(log));
 
       setLastAnalysisTime(new Date());
       setCountdown(1800); // Reset timer window
-      pushLog('🟢 Análise Multi-Períodos (MTF: 5M, 15M, 1H, 4H, 1D) concluída em 60+ moedas oficiais da Binance Spot!');
+      pushLog(`🟢 Análise Multi-Períodos concluída com Meta: +${goalPercent}% e Stop: -${stopLossPercent}%!`);
     } catch (err) {
       console.error('Erro na análise local:', err);
       pushLog('🔴 Falha na análise local de mercado.');
@@ -676,23 +741,21 @@ export default function App() {
   };
 
   // Guarantee that recommendations NEVER contain any coin currently in user's active portfolio
+  // and dynamically update target prices if user modifies their global profit/loss goals
   useEffect(() => {
     const activeList = trades.length > 0 ? trades : tradesRef.current;
     const userOwnedBases = new Set<string>(activeList.map(t => t.symbol.replace(/USDT$/, '').replace(/BRL$/, '').toUpperCase()));
     
-    if (userOwnedBases.size > 0) {
-      const hasConflict = recommendations.some(rec => {
-        const base = rec.symbol.replace(/USDT$/, '').replace(/BRL$/, '').toUpperCase();
-        return userOwnedBases.has(base);
-      });
-
-      if (hasConflict || recommendations.length === 0) {
-        const activeSymbols = activeList.map(t => t.symbol);
-        const freshSmartRecs = generateAdvancedMultiTimeframeRecommendations(marketPrices, activeSymbols, rawBinanceTickersRef.current);
-        setRecommendations(freshSmartRecs);
-      }
-    }
-  }, [trades, marketPrices]);
+    const activeSymbols = activeList.map(t => t.symbol);
+    const freshSmartRecs = generateAdvancedMultiTimeframeRecommendations(
+      marketPrices, 
+      activeSymbols, 
+      rawBinanceTickersRef.current,
+      goalPercent,
+      stopLossPercent
+    );
+    setRecommendations(freshSmartRecs);
+  }, [trades, marketPrices, goalPercent, stopLossPercent]);
 
   // Add new trade manually
   const handleSaveTrade = (newTradeData: Omit<Trade, 'id' | 'pnlValue' | 'pnlPercent' | 'currentPrice'>) => {
@@ -901,6 +964,14 @@ export default function App() {
         cashBalance={cashBalance}
         cashBalanceCurrency={cashBalanceCurrency}
         onUpdateCashBalance={handleUpdateCashBalance}
+        gainPercent={goalPercent}
+        lossPercent={stopLossPercent}
+        onChangeGainPercent={handleGoalPercentChange}
+        onChangeLossPercent={handleStopLossPercentChange}
+        calcPrice={calcPrice}
+        onChangeCalcPrice={handleCalcPriceChange}
+        calcInvestAmount={calcInvestAmount}
+        onChangeCalcInvestAmount={handleCalcInvestAmountChange}
       />
 
       {/* Main Body */}
@@ -972,6 +1043,10 @@ export default function App() {
               isLoading={isAnalyzing && recommendations.length === 0}
               onBuyClick={handleBuyRecommendation}
               usdtBrl={usdtBrl}
+              gainPercent={goalPercent}
+              lossPercent={stopLossPercent}
+              onChangeGainPercent={handleGoalPercentChange}
+              onChangeLossPercent={handleStopLossPercentChange}
             />
 
             {/* Minhas Moedas Ativas / Portfólio */}

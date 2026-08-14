@@ -113,13 +113,17 @@ export interface CloudData {
   cashBalanceCurrency?: 'BRL' | 'USDT';
   displayCurrency?: 'BRL' | 'USDT' | 'BTC';
   goalPercent?: number;
+  targetGainPercent?: number;
+  stopLossPercent?: number;
+  calcPrice?: string;
+  calcInvestAmount?: string;
   lastUpdated: string;
   updatedAtMs?: number;
 }
 
 let lastSaveAttempt = 0;
 
-// Save trades, history, cash balance, and display parameters to Firestore
+// Save trades, history, cash balance, display parameters and configured targets to Firestore
 export async function saveToCloud(
   syncId: string,
   trades: any[],
@@ -128,7 +132,10 @@ export async function saveToCloud(
   cashBalanceCurrency: 'BRL' | 'USDT',
   displayCurrency: 'BRL' | 'USDT' | 'BTC',
   goalPercent: number,
-  force: boolean = false
+  force: boolean = false,
+  stopLossPercent?: number,
+  calcPrice?: string,
+  calcInvestAmount?: string
 ): Promise<boolean> {
   // If quota is exhausted or db is unavailable, immediately skip cloud write and use local persistence
   if (!db || isQuotaExhausted()) {
@@ -144,16 +151,22 @@ export async function saveToCloud(
 
   try {
     const userDocRef = doc(db, 'users', syncId);
-    await setDoc(userDocRef, {
+    const payload: any = {
       trades,
       history,
       cashBalance,
       cashBalanceCurrency,
       displayCurrency,
       goalPercent,
+      targetGainPercent: goalPercent,
       lastUpdated: new Date().toISOString(),
       updatedAtMs: now
-    }, { merge: true });
+    };
+    if (stopLossPercent !== undefined) payload.stopLossPercent = stopLossPercent;
+    if (calcPrice !== undefined) payload.calcPrice = calcPrice;
+    if (calcInvestAmount !== undefined) payload.calcInvestAmount = calcInvestAmount;
+
+    await setDoc(userDocRef, payload, { merge: true });
     return true;
   } catch (err: any) {
     handleFirestoreError(err, OperationType.WRITE, `users/${syncId}`);
