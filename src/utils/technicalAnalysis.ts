@@ -345,14 +345,41 @@ export function generateAdvancedMultiTimeframeRecommendations(
   });
 
   // Return all evaluated recommendations sorted by highest score
+  const fiveMinMs = 5 * 60 * 1000;
+  const timeMs = now.getTime();
+  const currentCandleStartMs = Math.floor(timeMs / fiveMinMs) * fiveMinMs;
+  const nextCandleStartMs = currentCandleStartMs + fiveMinMs;
+  const secondCandleStartMs = currentCandleStartMs + (2 * fiveMinMs);
+
   return evaluatedCoins.map((item, idx) => {
     const cand = item.cand;
     const mtf = item.mtf;
-    const entryOffsetMin = (idx % 2 === 0 ? 5 : 10);
-    const entryDate = new Date(now.getTime() + entryOffsetMin * 60 * 1000);
+    
+    // Deterministic entry window anchored to candle boundaries
+    let entryCandleMs: number;
+    let entryStatus: 'ENTRAR_AGORA' | 'AGUARDAR_VELA' | 'PULLBACK_SUPORTE';
+    let exitOffsetMin: number;
+
+    if (idx === 0) {
+      // Top #1 candidate: ready for immediate execution within the current 5M candle
+      entryCandleMs = currentCandleStartMs;
+      entryStatus = 'ENTRAR_AGORA';
+      exitOffsetMin = 25;
+    } else if (idx === 1) {
+      // Top #2 candidate: waiting for the next 5M candle open to confirm breakout
+      entryCandleMs = nextCandleStartMs;
+      entryStatus = 'AGUARDAR_VELA';
+      exitOffsetMin = 30;
+    } else {
+      // Top #3 candidate: pullback entry on 2nd candle or next candle
+      entryCandleMs = (mtf.score >= 88) ? nextCandleStartMs : secondCandleStartMs;
+      entryStatus = 'PULLBACK_SUPORTE';
+      exitOffsetMin = 35;
+    }
+
+    const entryDate = new Date(entryCandleMs);
     const entryTimeStr = entryDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-    const exitOffsetMin = idx === 0 ? 25 : idx === 1 ? 35 : 45;
-    const exitDate = new Date(entryDate.getTime() + exitOffsetMin * 60 * 1000);
+    const exitDate = new Date(entryCandleMs + exitOffsetMin * 60 * 1000);
     const exitTimeStr = exitDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
     const reasoning = `Auditoria Multi-Período Binance (1D, 4H, 1H, 15M e 5M): ${cand.name} apresenta Confluência Técnica de ${mtf.score}% (Alta Probabilidade). Tendência macro em 4H/1D alinhada com médias móveis EMA 50/200. No gráfico de 1H, o RSI está em ${mtf.tf1h.rsi} (longe de sobrecompra), indicando espaço livre para valorização até a resistência técnica em $${formatNumber(item.targetPrice)}. Relação Risco/Retorno excelente de ${mtf.riskRewardRatio}.`;
@@ -371,6 +398,10 @@ export function generateAdvancedMultiTimeframeRecommendations(
       riskRewardRatio: mtf.riskRewardRatio,
       technicalSupport: mtf.technicalSupport,
       technicalResistance: item.targetPrice,
+      recommendedEntryTime: entryTimeStr,
+      recommendedExitTime: exitTimeStr,
+      entryStatus,
+      targetCandleMs: entryCandleMs,
       mtfAnalysis: {
         tf5m: {
           timeframe: '5M',
@@ -418,10 +449,7 @@ export function generateAdvancedMultiTimeframeRecommendations(
           summary: mtf.tf1d.status
         }
       },
-      recommendedEntryTime: entryTimeStr,
-      recommendedEntryCandleLabel: `Vela das ${entryDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} (Confirmação Multi-Timeframe)`,
-      recommendedExitTime: exitTimeStr,
-      candleOffsetMinutes: entryOffsetMin,
+      recommendedEntryCandleLabel: `Vela das ${entryTimeStr} (Confirmação Multi-Timeframe)`,
       candlePatternName: `Pullback em Suporte com Confirmação MTF (${mtf.score}% Confluência)`,
       priceActionStructure: `Suporte Institucional: $${formatNumber(mtf.technicalSupport)} | Resistência Alvo: $${formatNumber(item.targetPrice)}`,
       candleTechnicalDetail: `Score Confluência: ${mtf.score}% | R:R ${mtf.riskRewardRatio} | RSI 1H: ${mtf.tf1h.rsi} | Volume: $${cand.volumeM.toFixed(1)}M USDT 24h`,

@@ -30,9 +30,11 @@ export interface Recommendation {
     tf4h: MultiTimeframeStatus;
     tf1d: MultiTimeframeStatus;
   };
-  recommendedEntryTime?: string;       // Ex: "13:30:00" ou "13:35:00"
-  recommendedEntryCandleLabel?: string;// Ex: "Vela das 13:30 (Martelo Comprador - Entrada Imediata)"
-  recommendedExitTime?: string;        // Ex: "13:45:00"
+  recommendedEntryTime?: string;       // Ex: "19:25"
+  recommendedEntryCandleLabel?: string;// Ex: "Vela das 19:25 (Martelo Comprador - Entrada Imediata)"
+  recommendedExitTime?: string;        // Ex: "19:55"
+  entryStatus?: 'ENTRAR_AGORA' | 'AGUARDAR_VELA' | 'PULLBACK_SUPORTE';
+  targetCandleMs?: number;
   candleOffsetMinutes?: number;        // 5, 10 ou 15
   candlePatternName?: string;          // Ex: "Martelo Comprador no Suporte (5M)"
   priceActionStructure?: string;       // Ex: "Topo Alto: $0.0495 | Fundo Protegido: $0.0450"

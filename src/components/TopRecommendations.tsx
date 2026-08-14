@@ -230,23 +230,49 @@ export default function TopRecommendations({ recommendations, isLoading, onBuyCl
                     </div>
                   </div>
 
-                  {/* Timing: Sugestão de Entrada e Saída (Horas e Minutos, sem segundos) */}
-                  <div className="bg-[#121418] border border-gray-800 rounded-lg p-2 my-2 flex items-center justify-around font-mono text-xs">
-                    <div className="flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-[#0ecb81]" />
-                      <div>
-                        <span className="text-[9px] text-gray-400 block font-sans font-bold leading-none">HORA ENTRADA</span>
-                        <span className="text-xs font-black text-[#0ecb81]">{rec.recommendedEntryTime || '--:--'}</span>
-                      </div>
+                  {/* Timing: Sugestão de Entrada e Saída Ancorada no Ciclo de Velas */}
+                  <div className="bg-[#121418] border border-gray-800 rounded-lg p-2.5 my-2 space-y-1.5 font-mono text-xs">
+                    {/* Status Badge */}
+                    <div className="flex items-center justify-between">
+                      {rec.entryStatus === 'ENTRAR_AGORA' ? (
+                        <span className="bg-[#0ecb81]/15 text-[#0ecb81] border border-[#0ecb81]/30 text-[9px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 font-sans">
+                          <span className="w-1.5 h-1.5 bg-[#0ecb81] rounded-full animate-ping"></span>
+                          🟢 ENTRADA IMEDIATA (Janela Ativa)
+                        </span>
+                      ) : rec.entryStatus === 'AGUARDAR_VELA' ? (
+                        <span className="bg-[#f0b90b]/15 text-[#f0b90b] border border-[#f0b90b]/30 text-[9px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 font-sans">
+                          <span className="w-1.5 h-1.5 bg-[#f0b90b] rounded-full animate-pulse"></span>
+                          ⏳ AGUARDAR FECHAMENTO (às {rec.recommendedEntryTime})
+                        </span>
+                      ) : (
+                        <span className="bg-blue-500/15 text-blue-400 border border-blue-500/30 text-[9px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 font-sans">
+                          <span className="w-1.5 h-1.5 bg-blue-400 rounded-full"></span>
+                          🎯 AGUARDAR RETRAÇÃO/SUPORTE ({rec.recommendedEntryTime})
+                        </span>
+                      )}
+
+                      <span className="text-[9px] text-gray-400 font-sans font-medium">
+                        Vela 5M: <strong className="text-white font-mono">{candleInfo.remainingStr}</strong>
+                      </span>
                     </div>
 
-                    <div className="h-6 w-px bg-gray-800"></div>
+                    <div className="flex items-center justify-around pt-1 border-t border-gray-800/80">
+                      <div className="flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-[#0ecb81]" />
+                        <div>
+                          <span className="text-[8px] text-gray-400 block font-sans font-bold leading-none">HORA ENTRADA</span>
+                          <span className="text-xs font-black text-[#0ecb81]">{rec.recommendedEntryTime || '--:--'}</span>
+                        </div>
+                      </div>
 
-                    <div className="flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-[#f0b90b]" />
-                      <div>
-                        <span className="text-[9px] text-gray-400 block font-sans font-bold leading-none">SUGESTÃO SAÍDA</span>
-                        <span className="text-xs font-black text-[#f0b90b]">{rec.recommendedExitTime || '--:--'}</span>
+                      <div className="h-5 w-px bg-gray-800"></div>
+
+                      <div className="flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-[#f0b90b]" />
+                        <div>
+                          <span className="text-[8px] text-gray-400 block font-sans font-bold leading-none">SUGESTÃO SAÍDA</span>
+                          <span className="text-xs font-black text-[#f0b90b]">{rec.recommendedExitTime || '--:--'}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
