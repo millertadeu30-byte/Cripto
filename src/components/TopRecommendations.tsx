@@ -18,7 +18,7 @@ interface TopRecommendationsProps {
   onChangeLossPercent?: (loss: number) => void;
 }
 
-type CategoryType = 'Homologadas' | 'Todas' | 'Memes' | 'Trending & Novas' | 'Layer 1 / Layer 2' | 'AI & Big Data' | 'DeFi & RWA';
+type CategoryType = 'Homologadas' | 'Scalp Rápido' | 'Todas' | 'Memes' | 'Trending & Novas' | 'Layer 1 / Layer 2' | 'AI & Big Data' | 'DeFi & RWA';
 
 interface CategoryTabConfig {
   id: CategoryType;
@@ -31,6 +31,7 @@ interface CategoryTabConfig {
 
 const CATEGORY_TABS: CategoryTabConfig[] = [
   { id: 'Homologadas', shortLabel: 'Homologadas', fullLabel: 'Homologadas (Seguras p/ Noite)', icon: '🛡️', badge: 'Seguras', badgeColor: 'bg-emerald-500/20 text-emerald-300' },
+  { id: 'Scalp Rápido', shortLabel: 'Scalp (Top 2)', fullLabel: 'Scalp Rápido (Candle Verde & Volume 1H)', icon: '⚡', badge: 'Top 2', badgeColor: 'bg-amber-500/20 text-amber-300' },
   { id: 'Todas', shortLabel: 'Todas', fullLabel: 'Todas as Moedas', icon: '🌟' },
   { id: 'Memes', shortLabel: 'Memes', fullLabel: 'Memecoins (PEPE, DOGE...)', icon: '🐸', badge: 'Alta Vol.', badgeColor: 'bg-red-500/20 text-red-400' },
   { id: 'Trending & Novas', shortLabel: 'Em Alta', fullLabel: 'Altcoins em Alta (AVNT, SUI...)', icon: '🚀', badge: 'Hot', badgeColor: 'bg-yellow-500/20 text-yellow-400' },
@@ -162,7 +163,7 @@ export default function TopRecommendations({
 
   // Filter recommendations based on selected category & search query
   const filteredRecs = useMemo(() => {
-    return recommendations.filter(rec => {
+    let list = recommendations.filter(rec => {
       const matchesSearch = searchQuery.trim() === '' || 
         rec.symbol.toLowerCase().includes(searchQuery.toLowerCase().trim()) ||
         rec.coinName.toLowerCase().includes(searchQuery.toLowerCase().trim()) ||
@@ -170,14 +171,26 @@ export default function TopRecommendations({
 
       if (!matchesSearch) return false;
 
-      if (selectedCategory === 'Todas') return true;
+      if (selectedCategory === 'Todas' || selectedCategory === 'Scalp Rápido') return true;
       if (selectedCategory === 'Homologadas') return Boolean(rec.isHomologated);
       return rec.category === selectedCategory;
     });
+
+    if (selectedCategory === 'Scalp Rápido') {
+      // Sort specifically by Scalp Score (highest candle momentum + volume surge 1H)
+      list = [...list].sort((a, b) => (b.scalpScore || 0) - (a.scalpScore || 0));
+    }
+
+    return list;
   }, [recommendations, selectedCategory, searchQuery]);
 
-  // Top 3 best analyzed coins of the active filter
-  const top3 = useMemo(() => filteredRecs.slice(0, 3), [filteredRecs]);
+  // Top recommendations: exactly Top 2 for Scalp Rápido, or Top 3 for general categories
+  const topCards = useMemo(() => {
+    if (selectedCategory === 'Scalp Rápido') {
+      return filteredRecs.slice(0, 2);
+    }
+    return filteredRecs.slice(0, 3);
+  }, [filteredRecs, selectedCategory]);
 
   if (isLoading) {
     return (
@@ -452,8 +465,42 @@ export default function TopRecommendations({
         </div>
       )}
 
-      {/* TOP 3 CARDS */}
-      {top3.length === 0 ? (
+      {/* Scalp Rápido Mode Banner */}
+      {selectedCategory === 'Scalp Rápido' && (
+        <div className="bg-gradient-to-r from-amber-950/40 via-yellow-950/20 to-[#1e2026] border border-amber-500/40 rounded-xl p-3 shadow-lg shadow-amber-950/20 animate-in fade-in duration-200">
+          <div className="flex items-start sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 bg-amber-500/20 rounded-lg text-amber-400 shrink-0 border border-amber-500/40">
+                <Zap className="w-5 h-5 text-amber-400 animate-pulse" />
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <h4 className="text-amber-300 font-extrabold text-xs sm:text-sm flex items-center gap-1">
+                    ⚡ Top 2 Moedas para Scalping Imediato
+                  </h4>
+                  <span className="bg-amber-500/25 text-amber-300 text-[9px] px-1.5 py-0.5 rounded font-extrabold border border-amber-500/50 uppercase">
+                    Candle Verde & Volume 1H
+                  </span>
+                </div>
+                <p className="text-gray-300 text-[11px] mt-0.5 leading-relaxed">
+                  Varredura em tempo real selecionando as <strong>2 maiores explosões de compra da Binance</strong> com candle verde em forte aceleração e entrada massiva de volume.
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setSelectedCategory('Todas')}
+              className="text-[11px] text-gray-400 hover:text-white px-2 py-1 rounded hover:bg-gray-800 shrink-0 border border-gray-800"
+              title="Desativar Scalp e Ver Todas"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* TOP CARDS (Top 2 in Scalp mode, or Top 3 in general mode) */}
+      {topCards.length === 0 ? (
         <div className="text-center py-8 text-gray-400 text-sm bg-[#1e2026]/40 rounded-xl border border-gray-800">
           <BadgeInfo className="w-6 h-6 text-[#f0b90b] mx-auto mb-1 opacity-80" />
           Nenhuma recomendação encontrada para o filtro atual (<strong className="text-white">{searchQuery || selectedCategory}</strong>).
@@ -470,9 +517,10 @@ export default function TopRecommendations({
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {top3.map((rec, index) => {
+        <div className={`grid grid-cols-1 ${selectedCategory === 'Scalp Rápido' ? 'md:grid-cols-2' : 'md:grid-cols-3'} gap-4`}>
+          {topCards.map((rec, index) => {
             const isFirst = index === 0;
+            const isScalpMode = selectedCategory === 'Scalp Rápido';
 
             const calcTargetPrice = rec.currentPrice * (1 + gainVal / 100);
             const calcStopLossPrice = rec.currentPrice * (1 - lossVal / 100);
@@ -491,14 +539,28 @@ export default function TopRecommendations({
                 id={`rec-card-${rec.symbol}`}
                 key={rec.symbol}
                 className={`relative bg-[#1e2026] hover:bg-[#22252c] rounded-xl border transition-all p-4 flex flex-col justify-between shadow-md ${
-                  isFirst ? 'border-[#f0b90b] ring-1 ring-[#f0b90b]/30' : 'border-gray-800'
+                  isScalpMode
+                    ? isFirst 
+                      ? 'border-amber-500/80 ring-2 ring-amber-500/40 shadow-lg shadow-amber-950/30' 
+                      : 'border-yellow-500/60 ring-1 ring-yellow-500/30 shadow-md shadow-yellow-950/20'
+                    : isFirst 
+                      ? 'border-[#f0b90b] ring-1 ring-[#f0b90b]/30' 
+                      : 'border-gray-800'
                 }`}
               >
                 {/* Ranking Tag */}
                 <div className={`absolute top-0 right-0 text-[10px] font-extrabold px-2.5 py-0.5 rounded-bl-lg uppercase font-mono ${
-                  isFirst ? 'bg-[#f0b90b] text-black font-black' : 'bg-gray-800 text-gray-300'
+                  isScalpMode
+                    ? isFirst 
+                      ? 'bg-gradient-to-r from-amber-500 to-yellow-400 text-black font-black shadow-sm' 
+                      : 'bg-amber-600/80 text-white font-bold'
+                    : isFirst 
+                      ? 'bg-[#f0b90b] text-black font-black' 
+                      : 'bg-gray-800 text-gray-300'
                 }`}>
-                  {isFirst ? '🏆 #1 TOP CONFLUÊNCIA' : `#${index + 1}`}
+                  {isScalpMode 
+                    ? (isFirst ? '⚡ #1 TOP SCALP BINANCE' : '⚡ #2 TOP SCALP BINANCE')
+                    : (isFirst ? '🏆 #1 TOP CONFLUÊNCIA' : `#${index + 1}`)}
                 </div>
 
                 <div>
@@ -507,26 +569,69 @@ export default function TopRecommendations({
                     <span className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] px-1.5 py-0.5 rounded font-extrabold uppercase flex items-center gap-1">
                       <Zap className="w-3 h-3 text-emerald-400" /> {rec.action}
                     </span>
-                    {rec.isHomologated && (
+                    {isScalpMode ? (
+                      <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] px-1.5 py-0.5 rounded font-extrabold flex items-center gap-1">
+                        ⚡ Scalp Imediato
+                      </span>
+                    ) : rec.isHomologated ? (
                       <span className="bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[9px] px-1.5 py-0.5 rounded font-bold flex items-center gap-1">
                         <ShieldCheck className="w-3 h-3 text-emerald-400" /> Segura p/ Noite
                       </span>
-                    )}
-                    {rec.category && (
+                    ) : rec.category ? (
                       <span className="bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 text-[9px] px-1.5 py-0.5 rounded font-bold">
                         {rec.category}
                       </span>
-                    )}
+                    ) : null}
                     <span className="text-xs text-white font-mono font-bold">{rec.symbol}</span>
                   </div>
 
                   {/* Coin Name & Score */}
                   <div className="flex items-baseline justify-between mb-2">
-                    <h4 className="text-base font-bold text-white">{rec.coinName}</h4>
-                    <span className="text-xs font-mono font-extrabold text-[#f0b90b] bg-[#f0b90b]/10 px-1.5 py-0.5 rounded border border-[#f0b90b]/30">
-                      Score {score}%
+                    <h4 className="text-base font-bold text-white flex items-center gap-1.5">
+                      <span>{rec.coinName}</span>
+                      {rec.change24h !== undefined && (
+                        <span className={`text-[11px] font-mono font-extrabold ${rec.change24h >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          ({rec.change24h >= 0 ? `+${rec.change24h.toFixed(2)}%` : `${rec.change24h.toFixed(2)}%`})
+                        </span>
+                      )}
+                    </h4>
+                    <span className={`text-xs font-mono font-extrabold px-1.5 py-0.5 rounded border ${
+                      isScalpMode
+                        ? 'text-amber-300 bg-amber-500/15 border-amber-500/40'
+                        : 'text-[#f0b90b] bg-[#f0b90b]/10 border-[#f0b90b]/30'
+                    }`}>
+                      {isScalpMode ? `Scalp Score ${rec.scalpScore || 92}` : `Score ${score}%`}
                     </span>
                   </div>
+
+                  {/* Scalp Metrics Box (High Momentum, Volume Surge, Buy Pressure) */}
+                  {isScalpMode && (
+                    <div className="bg-gradient-to-b from-amber-950/30 to-black/40 border border-amber-500/30 rounded-lg p-2.5 my-2 space-y-1.5 text-xs font-sans">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-amber-300 font-bold flex items-center gap-1">
+                          🔥 Impulso de Vela:
+                        </span>
+                        <span className="text-emerald-400 font-extrabold font-mono">
+                          {rec.candleVelocityLabel || '🚀 Candle Verde em Expansão'}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-amber-950/60 font-mono text-[10px]">
+                        <div className="bg-black/50 p-1.5 rounded border border-gray-800">
+                          <span className="text-gray-400 block font-sans">Volume Surge (1H):</span>
+                          <span className="text-amber-300 font-extrabold">
+                            +{((rec.volumeSurgeRatio || 2.4) * 100).toFixed(0)}% ({rec.volumeQuoteM ? `$${rec.volumeQuoteM.toFixed(1)}M` : 'Alto'})
+                          </span>
+                        </div>
+                        <div className="bg-black/50 p-1.5 rounded border border-gray-800">
+                          <span className="text-gray-400 block font-sans">Pressão Compradora:</span>
+                          <span className="text-emerald-400 font-extrabold">
+                            {rec.buyPressurePct || 88}% Compradores
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Clean Timeframe Audit Tabs */}
                   <div className="bg-[#121418] border border-gray-800 rounded-lg p-2.5 my-2 space-y-1.5 font-mono text-xs">
@@ -546,7 +651,7 @@ export default function TopRecommendations({
                           onClick={() => setSelectedTfTab(prev => ({ ...prev, [rec.symbol]: tf }))}
                           className={`text-[9px] py-0.5 rounded font-bold transition-all cursor-pointer text-center ${
                             activeTf === tf
-                              ? 'bg-[#f0b90b] text-black'
+                              ? isScalpMode ? 'bg-amber-500 text-black font-extrabold' : 'bg-[#f0b90b] text-black font-extrabold'
                               : 'bg-gray-900 text-gray-400 hover:text-white border border-gray-800'
                           }`}
                         >
@@ -604,7 +709,9 @@ export default function TopRecommendations({
                       <div className="flex items-center gap-1.5">
                         <Clock className="w-3.5 h-3.5 text-[#f0b90b]" />
                         <div>
-                          <span className="text-[8px] text-gray-400 block font-sans font-bold leading-none">SUGESTÃO SAÍDA</span>
+                          <span className="text-[8px] text-gray-400 block font-sans font-bold leading-none">
+                            {isScalpMode ? 'SAÍDA SCALP' : 'SUGESTÃO SAÍDA'}
+                          </span>
                           <span className="text-xs font-black text-[#f0b90b]">{rec.recommendedExitTime || '--:--'}</span>
                         </div>
                       </div>

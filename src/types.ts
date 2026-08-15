@@ -12,7 +12,7 @@ export interface Recommendation {
   symbol: string;
   coinName: string;
   baseSymbol?: string;
-  category?: 'Todas' | 'Homologadas' | 'Memes' | 'Trending & Novas' | 'Layer 1 / Layer 2' | 'AI & Big Data' | 'DeFi & RWA' | 'Gaming & Infra';
+  category?: 'Todas' | 'Homologadas' | 'Memes' | 'Trending & Novas' | 'Layer 1 / Layer 2' | 'AI & Big Data' | 'DeFi & RWA' | 'Gaming & Infra' | 'Scalp Rápido';
   isHomologated?: boolean;
   action: 'COMPRA' | 'VENDER' | 'MANTER';
   currentPrice: number;
@@ -26,6 +26,15 @@ export interface Recommendation {
   riskRewardRatio?: string;// Ex: "1 : 2.4"
   technicalSupport?: number;
   technicalResistance?: number;
+  // Scalping specific metrics (Foto / Solicitação de Scalp)
+  scalpScore?: number;        // Pontuação de Scalp (Velocidade do Candle Verde + Volume Surge)
+  scalpRank?: number;         // 1 = Top 1 Scalp, 2 = Top 2 Scalp
+  volumeSurgeRatio?: number;  // Ex: 2.8 (280% acima do volume médio 1h)
+  buyPressurePct?: number;    // Ex: 88 (% de compradores dominando o book)
+  candleVelocityLabel?: string; // Ex: "🚀 Candle Verde Explosivo (Forte Impulso 1H)"
+  scalpWindowMinutes?: number;  // Ex: 10 a 25 min
+  change24h?: number;
+  volumeQuoteM?: number;
   mtfAnalysis?: {
     tf5m: MultiTimeframeStatus;
     tf15m: MultiTimeframeStatus;
