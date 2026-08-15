@@ -31,7 +31,7 @@ interface CategoryTabConfig {
 
 const CATEGORY_TABS: CategoryTabConfig[] = [
   { id: 'Homologadas', shortLabel: 'Homologadas', fullLabel: 'Homologadas (Seguras p/ Noite)', icon: '🛡️', badge: 'Seguras', badgeColor: 'bg-emerald-500/20 text-emerald-300' },
-  { id: 'Scalp Rápido', shortLabel: 'Scalp (Top 2)', fullLabel: 'Scalp Rápido (Candle Verde & Volume 1H)', icon: '⚡', badge: 'Top 2', badgeColor: 'bg-amber-500/20 text-amber-300' },
+  { id: 'Scalp Rápido', shortLabel: 'Scalp (Top 3)', fullLabel: 'Scalp Rápido (Candle Verde & Volume 1H)', icon: '⚡', badge: 'Top 3', badgeColor: 'bg-amber-500/20 text-amber-300' },
   { id: 'Todas', shortLabel: 'Todas', fullLabel: 'Todas as Moedas', icon: '🌟' },
   { id: 'Memes', shortLabel: 'Memes', fullLabel: 'Memecoins (PEPE, DOGE...)', icon: '🐸', badge: 'Alta Vol.', badgeColor: 'bg-red-500/20 text-red-400' },
   { id: 'Trending & Novas', shortLabel: 'Em Alta', fullLabel: 'Altcoins em Alta (AVNT, SUI...)', icon: '🚀', badge: 'Hot', badgeColor: 'bg-yellow-500/20 text-yellow-400' },
@@ -199,13 +199,10 @@ export default function TopRecommendations({
     return list;
   }, [recommendations, selectedCategory, searchQuery]);
 
-  // Top recommendations: exactly Top 2 for Scalp Rápido, or Top 3 for general categories
+  // Top recommendations: Top 3 for Scalp Rápido and general categories
   const topCards = useMemo(() => {
-    if (selectedCategory === 'Scalp Rápido') {
-      return filteredRecs.slice(0, 2);
-    }
     return filteredRecs.slice(0, 3);
-  }, [filteredRecs, selectedCategory]);
+  }, [filteredRecs]);
 
   if (isLoading) {
     return (
@@ -491,14 +488,14 @@ export default function TopRecommendations({
               <div>
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <h4 className="text-amber-300 font-extrabold text-xs sm:text-sm flex items-center gap-1">
-                    ⚡ Top 2 Moedas para Scalping Imediato
+                    ⚡ Top 3 Moedas para Scalping Imediato
                   </h4>
                   <span className="bg-amber-500/25 text-amber-300 text-[9px] px-1.5 py-0.5 rounded font-extrabold border border-amber-500/50 uppercase">
                     Candle Verde & Volume 1H
                   </span>
                 </div>
                 <p className="text-gray-300 text-[11px] mt-0.5 leading-relaxed">
-                  Varredura em tempo real selecionando as <strong>2 maiores explosões de compra da Binance</strong> com candle verde em forte aceleração e entrada massiva de volume.
+                  Varredura em tempo real selecionando as <strong>3 maiores explosões de compra da Binance</strong> com candle verde em forte aceleração, pressão no book e entrada de volume.
                 </p>
               </div>
             </div>
@@ -514,7 +511,7 @@ export default function TopRecommendations({
         </div>
       )}
 
-      {/* TOP CARDS (Top 2 in Scalp mode, or Top 3 in general mode) */}
+      {/* TOP CARDS (Top 3 for Scalp and general mode) */}
       {topCards.length === 0 ? (
         <div className="text-center py-8 text-gray-400 text-sm bg-[#1e2026]/40 rounded-xl border border-gray-800">
           <BadgeInfo className="w-6 h-6 text-[#f0b90b] mx-auto mb-1 opacity-80" />
@@ -532,9 +529,10 @@ export default function TopRecommendations({
           </div>
         </div>
       ) : (
-        <div className={`grid grid-cols-1 ${selectedCategory === 'Scalp Rápido' ? 'md:grid-cols-2' : 'md:grid-cols-3'} gap-4`}>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {topCards.map((rec, index) => {
             const isFirst = index === 0;
+            const isSecond = index === 1;
             const isScalpMode = selectedCategory === 'Scalp Rápido';
 
             const calcTargetPrice = rec.currentPrice * (1 + gainVal / 100);
@@ -557,7 +555,9 @@ export default function TopRecommendations({
                   isScalpMode
                     ? isFirst 
                       ? 'border-amber-500/80 ring-2 ring-amber-500/40 shadow-lg shadow-amber-950/30' 
-                      : 'border-yellow-500/60 ring-1 ring-yellow-500/30 shadow-md shadow-yellow-950/20'
+                      : isSecond
+                        ? 'border-yellow-500/60 ring-1 ring-yellow-500/30 shadow-md shadow-yellow-950/20'
+                        : 'border-amber-500/40 ring-1 ring-amber-500/20 shadow-md shadow-amber-950/15'
                     : isFirst 
                       ? 'border-[#f0b90b] ring-1 ring-[#f0b90b]/30' 
                       : 'border-gray-800'
@@ -568,13 +568,15 @@ export default function TopRecommendations({
                   isScalpMode
                     ? isFirst 
                       ? 'bg-gradient-to-r from-amber-500 to-yellow-400 text-black font-black shadow-sm' 
-                      : 'bg-amber-600/80 text-white font-bold'
+                      : isSecond
+                        ? 'bg-amber-600/80 text-white font-bold'
+                        : 'bg-amber-700/80 text-amber-100 font-bold'
                     : isFirst 
                       ? 'bg-[#f0b90b] text-black font-black' 
                       : 'bg-gray-800 text-gray-300'
                 }`}>
                   {isScalpMode 
-                    ? (isFirst ? '⚡ #1 TOP SCALP BINANCE' : '⚡ #2 TOP SCALP BINANCE')
+                    ? (isFirst ? '⚡ #1 TOP SCALP BINANCE' : isSecond ? '⚡ #2 TOP SCALP BINANCE' : '⚡ #3 TOP SCALP BINANCE')
                     : (isFirst ? '🏆 #1 TOP CONFLUÊNCIA' : `#${index + 1}`)}
                 </div>
 
