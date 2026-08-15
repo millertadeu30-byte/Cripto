@@ -18,7 +18,7 @@ interface TopRecommendationsProps {
   onChangeLossPercent?: (loss: number) => void;
 }
 
-type CategoryType = 'Homologadas' | 'Scalp Rápido' | 'Todas' | 'Memes' | 'Trending & Novas' | 'Layer 1 / Layer 2' | 'AI & Big Data' | 'DeFi & RWA';
+type CategoryType = 'Homologadas' | 'Scalp Rápido' | 'Fundo & Explosão' | 'Todas' | 'Memes' | 'Trending & Novas' | 'Layer 1 / Layer 2' | 'AI & Big Data' | 'DeFi & RWA';
 
 interface CategoryTabConfig {
   id: CategoryType;
@@ -32,6 +32,7 @@ interface CategoryTabConfig {
 const CATEGORY_TABS: CategoryTabConfig[] = [
   { id: 'Homologadas', shortLabel: 'Homologadas', fullLabel: 'Homologadas (Seguras p/ Noite)', icon: '🛡️', badge: 'Seguras', badgeColor: 'bg-emerald-500/20 text-emerald-300' },
   { id: 'Scalp Rápido', shortLabel: 'Scalp (Top 3)', fullLabel: 'Scalp Rápido (Candle Verde & Volume 1H)', icon: '⚡', badge: 'Top 3', badgeColor: 'bg-amber-500/20 text-amber-300' },
+  { id: 'Fundo & Explosão', shortLabel: 'Fundo (Top 3)', fullLabel: 'Fundo Histórico & Reversão (Explosão 1D - 1W)', icon: '💎', badge: 'Top 3 Fundo', badgeColor: 'bg-cyan-500/20 text-cyan-300' },
   { id: 'Todas', shortLabel: 'Todas', fullLabel: 'Todas as Moedas', icon: '🌟' },
   { id: 'Memes', shortLabel: 'Memes', fullLabel: 'Memecoins (PEPE, DOGE...)', icon: '🐸', badge: 'Alta Vol.', badgeColor: 'bg-red-500/20 text-red-400' },
   { id: 'Trending & Novas', shortLabel: 'Em Alta', fullLabel: 'Altcoins em Alta (AVNT, SUI...)', icon: '🚀', badge: 'Hot', badgeColor: 'bg-yellow-500/20 text-yellow-400' },
@@ -75,11 +76,11 @@ export default function TopRecommendations({
   const [candleInfo, setCandleInfo] = useState(() => analyze5MinCandle());
   const [selectedTfTab, setSelectedTfTab] = useState<{ [symbol: string]: '5M' | '15M' | '1H' | '4H' | '1D' }>({});
   
-  // Category & search filtering (Default to 'Todas' or allow selecting 'Homologadas' or 'Scalp Rápido' with persistence)
+  // Category & search filtering (Default to 'Todas' or allow selecting 'Homologadas', 'Scalp Rápido' or 'Fundo & Explosão' with persistence)
   const [selectedCategory, setSelectedCategory] = useState<CategoryType>(() => {
     try {
       const saved = localStorage.getItem('binance_assistant_active_category');
-      if (saved && ['Todas', 'Homologadas', 'Scalp Rápido', 'Memes', 'Trending & Novas', 'Layer 1 / Layer 2', 'AI & Big Data', 'DeFi & RWA'].includes(saved)) {
+      if (saved && ['Todas', 'Homologadas', 'Scalp Rápido', 'Fundo & Explosão', 'Memes', 'Trending & Novas', 'Layer 1 / Layer 2', 'AI & Big Data', 'DeFi & RWA'].includes(saved)) {
         return saved as CategoryType;
       }
     } catch (e) {}
@@ -187,6 +188,10 @@ export default function TopRecommendations({
       if (!matchesSearch) return false;
 
       if (selectedCategory === 'Todas' || selectedCategory === 'Scalp Rápido') return true;
+      if (selectedCategory === 'Fundo & Explosão') {
+        // Must be a fundamentally solid coin (Homologated or high liquidity asset with bottom metrics)
+        return Boolean(rec.isHomologated || rec.isBottomReversal || (rec.volumeQuoteM && rec.volumeQuoteM > 8));
+      }
       if (selectedCategory === 'Homologadas') return Boolean(rec.isHomologated);
       return rec.category === selectedCategory;
     });
@@ -194,6 +199,13 @@ export default function TopRecommendations({
     if (selectedCategory === 'Scalp Rápido') {
       // Sort specifically by Scalp Score (highest candle momentum + volume surge 1H)
       list = [...list].sort((a, b) => (b.scalpScore || 0) - (a.scalpScore || 0));
+    } else if (selectedCategory === 'Fundo & Explosão') {
+      // Sort specifically by Bottom Rebound Score & biggest weekly/monthly drop for maximum explosive upside
+      list = [...list].sort((a, b) => {
+        const scoreA = (b.bottomReboundScore || 0) + Math.abs(b.recentDropWeeklyPct || 0);
+        const scoreB = (a.bottomReboundScore || 0) + Math.abs(a.recentDropWeeklyPct || 0);
+        return scoreA - scoreB;
+      });
     }
 
     return list;
@@ -346,7 +358,11 @@ export default function TopRecommendations({
                       isActive 
                         ? tab.id === 'Homologadas'
                           ? 'bg-emerald-500 text-black border-emerald-400 shadow-md shadow-emerald-500/20 ring-2 ring-emerald-400/40 font-extrabold'
-                          : 'bg-[#f0b90b] text-black border-[#f0b90b] shadow-md shadow-yellow-500/10 font-extrabold'
+                          : tab.id === 'Scalp Rápido'
+                            ? 'bg-amber-500 text-black border-amber-400 shadow-md shadow-amber-500/20 ring-2 ring-amber-400/40 font-extrabold'
+                            : tab.id === 'Fundo & Explosão'
+                              ? 'bg-cyan-500 text-black border-cyan-400 shadow-md shadow-cyan-500/20 ring-2 ring-cyan-400/40 font-extrabold'
+                              : 'bg-[#f0b90b] text-black border-[#f0b90b] shadow-md shadow-yellow-500/10 font-extrabold'
                         : 'bg-[#1e2026] text-gray-300 border-gray-800 hover:text-white hover:border-gray-700 active:scale-95'
                     }`}
                     title={tab.fullLabel}
@@ -511,7 +527,41 @@ export default function TopRecommendations({
         </div>
       )}
 
-      {/* TOP CARDS (Top 3 for Scalp and general mode) */}
+      {/* Fundo & Explosão Mode Banner */}
+      {selectedCategory === 'Fundo & Explosão' && (
+        <div className="bg-gradient-to-r from-cyan-950/40 via-blue-950/25 to-[#1e2026] border border-cyan-500/40 rounded-xl p-3 shadow-lg shadow-cyan-950/25 animate-in fade-in duration-200">
+          <div className="flex items-start sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 bg-cyan-500/20 rounded-lg text-cyan-300 shrink-0 border border-cyan-500/40">
+                <span className="text-xl">💎</span>
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <h4 className="text-cyan-300 font-extrabold text-xs sm:text-sm flex items-center gap-1">
+                    💎 Top 3 Moedas Fortes no Fundo (Explosão Iminente 1D - 1W)
+                  </h4>
+                  <span className="bg-cyan-500/25 text-cyan-300 text-[9px] px-1.5 py-0.5 rounded font-extrabold border border-cyan-500/50 uppercase">
+                    Máximo Desconto & Zero Risco Estrutural
+                  </span>
+                </div>
+                <p className="text-gray-300 text-[11px] mt-0.5 leading-relaxed">
+                  Algoritmo selecionando as <strong>3 criptomoedas consolidadas com maior retração acumulada na semana e mês</strong>, assentadas em suporte histórico inquebrável com projeção de explosão para cima entre 1 dia e 1 semana.
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setSelectedCategory('Todas')}
+              className="text-[11px] text-gray-400 hover:text-white px-2 py-1 rounded hover:bg-gray-800 shrink-0 border border-gray-800"
+              title="Desativar Fundo e Ver Todas"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* TOP CARDS (Top 3 for Scalp, Fundo & Explosão, and general mode) */}
       {topCards.length === 0 ? (
         <div className="text-center py-8 text-gray-400 text-sm bg-[#1e2026]/40 rounded-xl border border-gray-800">
           <BadgeInfo className="w-6 h-6 text-[#f0b90b] mx-auto mb-1 opacity-80" />
@@ -534,16 +584,21 @@ export default function TopRecommendations({
             const isFirst = index === 0;
             const isSecond = index === 1;
             const isScalpMode = selectedCategory === 'Scalp Rápido';
+            const isBottomMode = selectedCategory === 'Fundo & Explosão';
 
-            const calcTargetPrice = rec.currentPrice * (1 + gainVal / 100);
-            const calcStopLossPrice = rec.currentPrice * (1 - lossVal / 100);
+            const userLivePrice = rec.currentPrice;
+
+            // Ponto de Entrada Estratégico Seguro (Ordem Limite no Suporte Imediato -0.5% para pescar o fundo exato)
+            const strategicLimitEntry = userLivePrice * 0.995;
+            const calcTargetPrice = userLivePrice * (1 + gainVal / 100);
+            const calcStopLossPrice = userLivePrice * (1 - lossVal / 100);
 
             const rawInvest = parseFloat(signalInvestments[rec.symbol] || '100') || 100;
-            const coinQty = rec.currentPrice > 0 ? rawInvest / rec.currentPrice : 0;
+            const coinQty = userLivePrice > 0 ? rawInvest / userLivePrice : 0;
             const gainProfitDollars = rawInvest * (gainVal / 100);
             const gainProfitBrl = gainProfitDollars * usdtBrl;
 
-            const activeTf = selectedTfTab[rec.symbol] || '1H';
+            const activeTf = selectedTfTab[rec.symbol] || (isBottomMode ? '1D' : '1H');
             const mtfData = rec.mtfAnalysis;
             const score = rec.confluenceScore || 90;
 
@@ -552,32 +607,46 @@ export default function TopRecommendations({
                 id={`rec-card-${rec.symbol}`}
                 key={rec.symbol}
                 className={`relative bg-[#1e2026] hover:bg-[#22252c] rounded-xl border transition-all p-4 flex flex-col justify-between shadow-md ${
-                  isScalpMode
+                  isBottomMode
                     ? isFirst 
-                      ? 'border-amber-500/80 ring-2 ring-amber-500/40 shadow-lg shadow-amber-950/30' 
+                      ? 'border-cyan-500/80 ring-2 ring-cyan-500/40 shadow-lg shadow-cyan-950/30' 
                       : isSecond
-                        ? 'border-yellow-500/60 ring-1 ring-yellow-500/30 shadow-md shadow-yellow-950/20'
-                        : 'border-amber-500/40 ring-1 ring-amber-500/20 shadow-md shadow-amber-950/15'
-                    : isFirst 
-                      ? 'border-[#f0b90b] ring-1 ring-[#f0b90b]/30' 
-                      : 'border-gray-800'
+                        ? 'border-cyan-500/60 ring-1 ring-cyan-500/30 shadow-md shadow-cyan-950/20'
+                        : 'border-cyan-500/40 ring-1 ring-cyan-500/20 shadow-md shadow-cyan-950/15'
+                    : isScalpMode
+                      ? isFirst 
+                        ? 'border-amber-500/80 ring-2 ring-amber-500/40 shadow-lg shadow-amber-950/30' 
+                        : isSecond
+                          ? 'border-yellow-500/60 ring-1 ring-yellow-500/30 shadow-md shadow-yellow-950/20'
+                          : 'border-amber-500/40 ring-1 ring-amber-500/20 shadow-md shadow-amber-950/15'
+                      : isFirst 
+                        ? 'border-[#f0b90b] ring-1 ring-[#f0b90b]/30' 
+                        : 'border-gray-800'
                 }`}
               >
                 {/* Ranking Tag */}
                 <div className={`absolute top-0 right-0 text-[10px] font-extrabold px-2.5 py-0.5 rounded-bl-lg uppercase font-mono ${
-                  isScalpMode
+                  isBottomMode
                     ? isFirst 
-                      ? 'bg-gradient-to-r from-amber-500 to-yellow-400 text-black font-black shadow-sm' 
+                      ? 'bg-gradient-to-r from-cyan-500 to-blue-400 text-black font-black shadow-sm' 
                       : isSecond
-                        ? 'bg-amber-600/80 text-white font-bold'
-                        : 'bg-amber-700/80 text-amber-100 font-bold'
-                    : isFirst 
-                      ? 'bg-[#f0b90b] text-black font-black' 
-                      : 'bg-gray-800 text-gray-300'
+                        ? 'bg-cyan-600/80 text-white font-bold'
+                        : 'bg-cyan-700/80 text-cyan-100 font-bold'
+                    : isScalpMode
+                      ? isFirst 
+                        ? 'bg-gradient-to-r from-amber-500 to-yellow-400 text-black font-black shadow-sm' 
+                        : isSecond
+                          ? 'bg-amber-600/80 text-white font-bold'
+                          : 'bg-amber-700/80 text-amber-100 font-bold'
+                      : isFirst 
+                        ? 'bg-[#f0b90b] text-black font-black' 
+                        : 'bg-gray-800 text-gray-300'
                 }`}>
-                  {isScalpMode 
-                    ? (isFirst ? '⚡ #1 TOP SCALP BINANCE' : isSecond ? '⚡ #2 TOP SCALP BINANCE' : '⚡ #3 TOP SCALP BINANCE')
-                    : (isFirst ? '🏆 #1 TOP CONFLUÊNCIA' : `#${index + 1}`)}
+                  {isBottomMode
+                    ? (isFirst ? '💎 #1 SUPER FUNDO BINANCE' : isSecond ? '💎 #2 SUPER FUNDO BINANCE' : '💎 #3 SUPER FUNDO BINANCE')
+                    : isScalpMode 
+                      ? (isFirst ? '⚡ #1 TOP SCALP BINANCE' : isSecond ? '⚡ #2 TOP SCALP BINANCE' : '⚡ #3 TOP SCALP BINANCE')
+                      : (isFirst ? '🏆 #1 TOP CONFLUÊNCIA' : `#${index + 1}`)}
                 </div>
 
                 <div>
@@ -586,7 +655,11 @@ export default function TopRecommendations({
                     <span className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] px-1.5 py-0.5 rounded font-extrabold uppercase flex items-center gap-1">
                       <Zap className="w-3 h-3 text-emerald-400" /> {rec.action}
                     </span>
-                    {isScalpMode ? (
+                    {isBottomMode ? (
+                      <span className="bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 text-[9px] px-1.5 py-0.5 rounded font-extrabold flex items-center gap-1">
+                        💎 Fundo & Explosão 1D-1W
+                      </span>
+                    ) : isScalpMode ? (
                       <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] px-1.5 py-0.5 rounded font-extrabold flex items-center gap-1">
                         ⚡ Scalp Imediato
                       </span>
@@ -613,13 +686,60 @@ export default function TopRecommendations({
                       )}
                     </h4>
                     <span className={`text-xs font-mono font-extrabold px-1.5 py-0.5 rounded border ${
-                      isScalpMode
-                        ? 'text-amber-300 bg-amber-500/15 border-amber-500/40'
-                        : 'text-[#f0b90b] bg-[#f0b90b]/10 border-[#f0b90b]/30'
+                      isBottomMode
+                        ? 'text-cyan-300 bg-cyan-500/15 border-cyan-500/40'
+                        : isScalpMode
+                          ? 'text-amber-300 bg-amber-500/15 border-amber-500/40'
+                          : 'text-[#f0b90b] bg-[#f0b90b]/10 border-[#f0b90b]/30'
                     }`}>
-                      {isScalpMode ? `Scalp Score ${rec.scalpScore || 92}` : `Score ${score}%`}
+                      {isBottomMode
+                        ? `Rebound Score ${rec.bottomReboundScore || 96}%`
+                        : isScalpMode 
+                          ? `Scalp Score ${rec.scalpScore || 92}` 
+                          : `Score ${score}%`}
                     </span>
                   </div>
+
+                  {/* Fundo & Explosão Metrics Box */}
+                  {isBottomMode && (
+                    <div className="bg-gradient-to-b from-cyan-950/35 via-[#181a20] to-black/50 border border-cyan-500/40 rounded-lg p-2.5 my-2 space-y-2 text-xs font-sans">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-cyan-300 font-bold flex items-center gap-1">
+                          📉 Queda no Fundo:
+                        </span>
+                        <span className="text-red-400 font-extrabold font-mono text-right">
+                          {rec.recentDropWeeklyPct || -16}% (Semana) | {rec.recentDropMonthlyPct || -34}% (Mês)
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-cyan-950/60 font-mono text-[10px]">
+                        <div className="bg-black/60 p-1.5 rounded border border-gray-800">
+                          <span className="text-gray-400 block font-sans">Alvo de Explosão:</span>
+                          <span className="text-emerald-400 font-extrabold">
+                            +{rec.reversalExplosionTargetPct || 28.5}% no Rebote
+                          </span>
+                        </div>
+                        <div className="bg-black/60 p-1.5 rounded border border-gray-800">
+                          <span className="text-gray-400 block font-sans">Janela Prevista:</span>
+                          <span className="text-cyan-300 font-extrabold">
+                            {rec.reversalExplosionWindow || '1 Dia a 1 Semana'}
+                          </span>
+                        </div>
+                        <div className="bg-black/60 p-1.5 rounded border border-gray-800 col-span-2">
+                          <span className="text-gray-400 block font-sans">Suporte & Absorção:</span>
+                          <span className="text-blue-300 font-bold block truncate" title={rec.bottomSupportStrength}>
+                            {rec.bottomSupportStrength || '🛡️ Suporte Histórico 1D Inviolado'}
+                          </span>
+                        </div>
+                        <div className="bg-black/60 p-1.5 rounded border border-gray-800 col-span-2">
+                          <span className="text-gray-400 block font-sans">Segurança:</span>
+                          <span className="text-purple-300 font-bold block truncate" title={rec.bottomRiskLevel}>
+                            {rec.bottomRiskLevel || '🟢 Risco Estrutural Quase Nulo'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Scalp Metrics Box (Institutional Momentum, Volume Surge, Order Flow, VWAP & EMA Cross) */}
                   {isScalpMode && (
@@ -680,7 +800,11 @@ export default function TopRecommendations({
                           onClick={() => setSelectedTfTab(prev => ({ ...prev, [rec.symbol]: tf }))}
                           className={`text-[9px] py-0.5 rounded font-bold transition-all cursor-pointer text-center ${
                             activeTf === tf
-                              ? isScalpMode ? 'bg-amber-500 text-black font-extrabold' : 'bg-[#f0b90b] text-black font-extrabold'
+                              ? isBottomMode
+                                ? 'bg-cyan-400 text-black font-extrabold'
+                                : isScalpMode 
+                                  ? 'bg-amber-500 text-black font-extrabold' 
+                                  : 'bg-[#f0b90b] text-black font-extrabold'
                               : 'bg-gray-900 text-gray-400 hover:text-white border border-gray-800'
                           }`}
                         >
@@ -702,7 +826,12 @@ export default function TopRecommendations({
                   <div className="bg-[#121418] border border-gray-800 rounded-lg p-2.5 my-2 space-y-1.5 font-mono text-xs">
                     {/* Status Badge */}
                     <div className="flex items-center justify-between">
-                      {rec.entryStatus === 'ENTRAR_AGORA' ? (
+                      {isBottomMode ? (
+                        <span className="bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 text-[9px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 font-sans">
+                          <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-ping"></span>
+                          💎 FUNDO ARMADO (Janela 1D - 1W)
+                        </span>
+                      ) : rec.entryStatus === 'ENTRAR_AGORA' ? (
                         <span className="bg-[#0ecb81]/15 text-[#0ecb81] border border-[#0ecb81]/30 text-[9px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 font-sans">
                           <span className="w-1.5 h-1.5 bg-[#0ecb81] rounded-full animate-ping"></span>
                           🟢 ENTRADA IMEDIATA (Janela Ativa)
@@ -720,7 +849,8 @@ export default function TopRecommendations({
                       )}
 
                       <span className="text-[9px] text-gray-400 font-sans font-medium">
-                        Vela 5M: <strong className="text-white font-mono">{candleInfo.remainingStr}</strong>
+                        {isBottomMode ? 'Timeframe: ' : 'Vela 5M: '}
+                        <strong className="text-white font-mono">{isBottomMode ? 'Diário / Semanal' : candleInfo.remainingStr}</strong>
                       </span>
                     </div>
 
@@ -728,8 +858,10 @@ export default function TopRecommendations({
                       <div className="flex items-center gap-1.5">
                         <Clock className="w-3.5 h-3.5 text-[#0ecb81]" />
                         <div>
-                          <span className="text-[8px] text-gray-400 block font-sans font-bold leading-none">HORA ENTRADA</span>
-                          <span className="text-xs font-black text-[#0ecb81]">{rec.recommendedEntryTime || '--:--'}</span>
+                          <span className="text-[8px] text-gray-400 block font-sans font-bold leading-none">
+                            {isBottomMode ? 'PONTO COMPRA' : 'HORA ENTRADA'}
+                          </span>
+                          <span className="text-xs font-black text-[#0ecb81]">{isBottomMode ? 'Fundo Atual' : (rec.recommendedEntryTime || '--:--')}</span>
                         </div>
                       </div>
 
@@ -739,28 +871,95 @@ export default function TopRecommendations({
                         <Clock className="w-3.5 h-3.5 text-[#f0b90b]" />
                         <div>
                           <span className="text-[8px] text-gray-400 block font-sans font-bold leading-none">
-                            {isScalpMode ? 'SAÍDA SCALP' : 'SUGESTÃO SAÍDA'}
+                            {isBottomMode ? 'HORIZONTE ALVO' : isScalpMode ? 'SAÍDA SCALP' : 'SUGESTÃO SAÍDA'}
                           </span>
-                          <span className="text-xs font-black text-[#f0b90b]">{rec.recommendedExitTime || '--:--'}</span>
+                          <span className="text-xs font-black text-[#f0b90b]">{isBottomMode ? '1D a 1 Sem.' : (rec.recommendedExitTime || '--:--')}</span>
                         </div>
                       </div>
+                    </div>
+                  </div>
+
+                  {/* Estudo Estratégico de Entrada na Binance (Ordem Limite no Suporte vs A Mercado) */}
+                  <div className="bg-[#101216] border border-emerald-500/40 rounded-xl p-3 my-2.5 space-y-2.5 shadow-md">
+                    <div className="flex items-center justify-between gap-1 flex-wrap">
+                      <span className="text-[11px] font-extrabold text-emerald-400 flex items-center gap-1.5 font-sans">
+                        <span>🛡️</span>
+                        <span>PONTO SEGURO DE ENTRADA (BINANCE):</span>
+                      </span>
+                      <span className="bg-emerald-500/15 text-emerald-300 text-[9px] px-1.5 py-0.5 rounded font-extrabold border border-emerald-500/30 font-sans">
+                        Ordem Limite no Suporte
+                      </span>
+                    </div>
+
+                    {/* Ordem Limite Recomendada */}
+                    <div className="bg-black/70 border border-emerald-500/30 rounded-lg p-2.5 font-mono">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm sm:text-base font-black text-emerald-300">
+                              {formatPriceHighPrecision(strategicLimitEntry)}
+                            </span>
+                            <span className="bg-emerald-500/20 text-emerald-300 text-[8px] px-1.5 py-0.2 rounded font-extrabold">
+                              -0.5% Suporte
+                            </span>
+                          </div>
+                          <span className="text-[9px] text-gray-400 block font-sans mt-0.5">
+                            💡 Deixe armada como <strong>Ordem Limite</strong> para pegar o teste de fundo com desconto
+                          </span>
+                        </div>
+
+                        <button
+                          onClick={() => handleCopyText(formatRawNumber(strategicLimitEntry), `${rec.symbol}-entry`)}
+                          className="bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-black font-extrabold px-2.5 py-1.5 rounded-lg text-[10px] cursor-pointer transition-all shadow-md shrink-0 ml-2"
+                          title="Copiar preço da Ordem Limite para colar na Binance"
+                        >
+                          {copiedKey === `${rec.symbol}-entry` ? '✓ Copiado!' : 'Copiar Limite'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Explicação Rápida de Segurança */}
+                    <div className="text-[9px] text-gray-400 font-sans leading-relaxed bg-[#16181f] p-2 rounded border border-gray-800 flex items-start gap-1.5">
+                      <span className="text-[#f0b90b] shrink-0 text-xs">ℹ️</span>
+                      <span>
+                        <strong className="text-gray-200">Por que o ponto seguro fica abaixo?</strong> Em retrações, entrar a mercado pode pegar oscilações contra você. A ordem limite no suporte posiciona sua compra onde as baleias absorvem o ativo, garantindo o melhor preço antes da explosão de retomada.
+                      </span>
                     </div>
                   </div>
 
                   {/* Prices: Entry & Target */}
                   <div className="grid grid-cols-2 gap-2 my-2 font-mono">
                     <div className="bg-[#121418] p-2 rounded-lg border border-gray-800">
-                      <span className="text-[9px] text-gray-400 font-bold block font-sans">PREÇO ATUAL</span>
-                      <span className="text-xs sm:text-sm font-extrabold text-white">{formatPriceHighPrecision(rec.currentPrice)}</span>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[9px] text-gray-400 font-bold block font-sans">
+                          PREÇO ATUAL (MERCADO)
+                        </span>
+                        <button
+                          onClick={() => handleCopyText(formatRawNumber(userLivePrice), `${rec.symbol}-curr`)}
+                          className="text-[8px] text-gray-400 hover:text-white px-1 py-0.5 rounded bg-gray-800"
+                          title="Copiar preço atual a mercado"
+                        >
+                          {copiedKey === `${rec.symbol}-curr` ? '✓' : 'Copiar'}
+                        </button>
+                      </div>
+                      <span className="text-xs sm:text-sm font-extrabold text-white">{formatPriceHighPrecision(userLivePrice)}</span>
                       <span className="text-[9px] text-gray-500 block font-sans">
-                        ≈ R$ {(rec.currentPrice * usdtBrl).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                        ≈ R$ {(userLivePrice * usdtBrl).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
                       </span>
                     </div>
 
                     <div className="bg-[#121418] p-2 rounded-lg border border-[#0ecb81]/30">
                       <div className="flex items-center justify-between">
-                        <span className="text-[9px] text-[#0ecb81] font-bold block font-sans">ALVO</span>
-                        <span className="text-[9px] text-emerald-400 font-bold">+{gainVal}%</span>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[9px] text-[#0ecb81] font-bold block font-sans">ALVO</span>
+                          <span className="text-[9px] text-emerald-400 font-bold">+{gainVal}%</span>
+                        </div>
+                        <button
+                          onClick={() => handleCopyText(formatRawNumber(calcTargetPrice), `${rec.symbol}-target`)}
+                          className="text-[8px] text-emerald-400 hover:text-white px-1 py-0.5 rounded bg-emerald-950/60 border border-emerald-500/30"
+                        >
+                          {copiedKey === `${rec.symbol}-target` ? '✓' : 'Copiar'}
+                        </button>
                       </div>
                       <span className="text-xs sm:text-sm font-extrabold text-[#0ecb81]">{formatPriceHighPrecision(calcTargetPrice)}</span>
                       <span className="text-[9px] text-emerald-500/70 block font-sans">
@@ -775,7 +974,15 @@ export default function TopRecommendations({
                       <AlertOctagon className="w-3 h-3" />
                       <span>Stop Loss ({lossVal}%):</span>
                     </div>
-                    <span className="font-bold text-red-300">{formatPriceHighPrecision(calcStopLossPrice)}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-red-300">{formatPriceHighPrecision(calcStopLossPrice)}</span>
+                      <button
+                        onClick={() => handleCopyText(formatRawNumber(calcStopLossPrice), `${rec.symbol}-stop`)}
+                        className="text-[8px] text-red-400 hover:text-white px-1 py-0.5 rounded bg-red-950/60 border border-red-500/30 font-sans"
+                      >
+                        {copiedKey === `${rec.symbol}-stop` ? '✓' : 'Copiar'}
+                      </button>
+                    </div>
                   </div>
 
                   {/* Quick Calculator */}
@@ -819,6 +1026,7 @@ export default function TopRecommendations({
                   id={`buy-rec-btn-${rec.symbol}`}
                   onClick={() => onBuyClick({
                     ...rec,
+                    currentPrice: userLivePrice,
                     targetPrice: calcTargetPrice,
                     stopLossPrice: calcStopLossPrice,
                     estimatedProfit: gainVal

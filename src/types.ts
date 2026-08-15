@@ -12,7 +12,7 @@ export interface Recommendation {
   symbol: string;
   coinName: string;
   baseSymbol?: string;
-  category?: 'Todas' | 'Homologadas' | 'Memes' | 'Trending & Novas' | 'Layer 1 / Layer 2' | 'AI & Big Data' | 'DeFi & RWA' | 'Gaming & Infra' | 'Scalp Rápido';
+  category?: 'Todas' | 'Homologadas' | 'Scalp Rápido' | 'Fundo & Explosão' | 'Memes' | 'Trending & Novas' | 'Layer 1 / Layer 2' | 'AI & Big Data' | 'DeFi & RWA' | 'Gaming & Infra';
   isHomologated?: boolean;
   action: 'COMPRA' | 'VENDER' | 'MANTER';
   currentPrice: number;
@@ -26,6 +26,16 @@ export interface Recommendation {
   riskRewardRatio?: string;// Ex: "1 : 2.4"
   technicalSupport?: number;
   technicalResistance?: number;
+  // Fundo & Reversão Explosiva (Moedas Fortes no Fundo Histórico com Explosão 1D - 1W)
+  isBottomReversal?: boolean;
+  recentDropWeeklyPct?: number;       // Ex: -16.4 (% queda na semana)
+  recentDropMonthlyPct?: number;      // Ex: -28.5 (% queda no mês)
+  reversalExplosionTargetPct?: number;// Ex: +28.0 (% ganho projetado em 1D-1W)
+  bottomSupportStrength?: string;     // Ex: "🛡️ Suporte Histórico 1D Inviolado (Fundo Triplo)"
+  reversalExplosionWindow?: string;   // Ex: "Disparo Previsto: 1 Dia a 1 Semana"
+  bottomReboundScore?: number;        // Ex: 97
+  bottomWhaleAbsorption?: string;     // Ex: "Baleias Acumulando no Fundo (Absorção Institucional)"
+  bottomRiskLevel?: string;           // Ex: "Risco de Queda Mínimo / Fundo de Rocha"
   // Scalping specific metrics (Foto / Solicitação de Scalp)
   scalpScore?: number;        // Pontuação de Scalp (Velocidade do Candle Verde + Volume Surge)
   scalpRank?: number;         // 1 = Top 1 Scalp, 2 = Top 2 Scalp
