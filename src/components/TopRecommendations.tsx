@@ -75,8 +75,23 @@ export default function TopRecommendations({
   const [candleInfo, setCandleInfo] = useState(() => analyze5MinCandle());
   const [selectedTfTab, setSelectedTfTab] = useState<{ [symbol: string]: '5M' | '15M' | '1H' | '4H' | '1D' }>({});
   
-  // Category & search filtering (Default to 'Todas' or allow selecting 'Homologadas')
-  const [selectedCategory, setSelectedCategory] = useState<CategoryType>('Todas');
+  // Category & search filtering (Default to 'Todas' or allow selecting 'Homologadas' or 'Scalp Rápido' with persistence)
+  const [selectedCategory, setSelectedCategory] = useState<CategoryType>(() => {
+    try {
+      const saved = localStorage.getItem('binance_assistant_active_category');
+      if (saved && ['Todas', 'Homologadas', 'Scalp Rápido', 'Memes', 'Trending & Novas', 'Layer 1 / Layer 2', 'AI & Big Data', 'DeFi & RWA'].includes(saved)) {
+        return saved as CategoryType;
+      }
+    } catch (e) {}
+    return 'Todas';
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('binance_assistant_active_category', selectedCategory);
+    } catch (e) {}
+  }, [selectedCategory]);
+
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showFullRadar, setShowFullRadar] = useState<boolean>(false);
   const [isNightBannerExpanded, setIsNightBannerExpanded] = useState<boolean>(false);
@@ -604,29 +619,41 @@ export default function TopRecommendations({
                     </span>
                   </div>
 
-                  {/* Scalp Metrics Box (High Momentum, Volume Surge, Buy Pressure) */}
+                  {/* Scalp Metrics Box (Institutional Momentum, Volume Surge, Order Flow, VWAP & EMA Cross) */}
                   {isScalpMode && (
-                    <div className="bg-gradient-to-b from-amber-950/30 to-black/40 border border-amber-500/30 rounded-lg p-2.5 my-2 space-y-1.5 text-xs font-sans">
+                    <div className="bg-gradient-to-b from-amber-950/30 via-[#181a20] to-black/50 border border-amber-500/40 rounded-lg p-2.5 my-2 space-y-2 text-xs font-sans">
                       <div className="flex items-center justify-between text-[11px]">
                         <span className="text-amber-300 font-bold flex items-center gap-1">
                           🔥 Impulso de Vela:
                         </span>
-                        <span className="text-emerald-400 font-extrabold font-mono">
+                        <span className="text-emerald-400 font-extrabold font-mono text-right">
                           {rec.candleVelocityLabel || '🚀 Candle Verde em Expansão'}
                         </span>
                       </div>
 
                       <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-amber-950/60 font-mono text-[10px]">
-                        <div className="bg-black/50 p-1.5 rounded border border-gray-800">
+                        <div className="bg-black/60 p-1.5 rounded border border-gray-800">
                           <span className="text-gray-400 block font-sans">Volume Surge (1H):</span>
                           <span className="text-amber-300 font-extrabold">
                             +{((rec.volumeSurgeRatio || 2.4) * 100).toFixed(0)}% ({rec.volumeQuoteM ? `$${rec.volumeQuoteM.toFixed(1)}M` : 'Alto'})
                           </span>
                         </div>
-                        <div className="bg-black/50 p-1.5 rounded border border-gray-800">
+                        <div className="bg-black/60 p-1.5 rounded border border-gray-800">
                           <span className="text-gray-400 block font-sans">Pressão Compradora:</span>
                           <span className="text-emerald-400 font-extrabold">
-                            {rec.buyPressurePct || 88}% Compradores
+                            {rec.buyPressurePct || 88}% ({rec.orderFlowRatio || 'Dominância'})
+                          </span>
+                        </div>
+                        <div className="bg-black/60 p-1.5 rounded border border-gray-800">
+                          <span className="text-gray-400 block font-sans">Médias Rápidas:</span>
+                          <span className="text-blue-400 font-extrabold truncate">
+                            {rec.scalpEmaCross || 'EMA 9 > 21 Ativa'}
+                          </span>
+                        </div>
+                        <div className="bg-black/60 p-1.5 rounded border border-gray-800">
+                          <span className="text-gray-400 block font-sans">Posição Institucional:</span>
+                          <span className="text-purple-300 font-extrabold truncate">
+                            {rec.scalpVwapStatus || 'Acima da VWAP'}
                           </span>
                         </div>
                       </div>

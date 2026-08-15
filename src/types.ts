@@ -33,6 +33,10 @@ export interface Recommendation {
   buyPressurePct?: number;    // Ex: 88 (% de compradores dominando o book)
   candleVelocityLabel?: string; // Ex: "🚀 Candle Verde Explosivo (Forte Impulso 1H)"
   scalpWindowMinutes?: number;  // Ex: 10 a 25 min
+  scalpEmaCross?: string;       // Ex: "EMA 9 > 21 (Cruzamento de Alta Confirmado)"
+  scalpVwapStatus?: string;     // Ex: "+1.2% Acima da VWAP Institucional"
+  orderFlowRatio?: string;      // Ex: "4.2x Mais Compradores que Vendedores"
+  microTrend15m?: string;       // Ex: "Tops e Fundos Ascendentes no 15M"
   change24h?: number;
   volumeQuoteM?: number;
   mtfAnalysis?: {

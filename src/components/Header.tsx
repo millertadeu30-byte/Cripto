@@ -26,6 +26,8 @@ interface HeaderProps {
   onChangeCalcPrice?: (price: string) => void;
   calcInvestAmount?: string;
   onChangeCalcInvestAmount?: (amount: string) => void;
+  countdown?: number;
+  autoRefreshSeconds?: number;
 }
 
 export default function Header({
@@ -51,7 +53,9 @@ export default function Header({
   calcPrice: externalCalcPrice,
   onChangeCalcPrice,
   calcInvestAmount: externalCalcInvestAmount,
-  onChangeCalcInvestAmount
+  onChangeCalcInvestAmount,
+  countdown = 40,
+  autoRefreshSeconds = 40
 }: HeaderProps) {
   const [hideBalances, setHideBalances] = useState(false);
   const [activeTab, setActiveTab] = useState<'geral' | 'spot' | 'alpha' | 'fundos'>('spot');
@@ -667,6 +671,10 @@ export default function Header({
                 <span className="text-gray-200 font-mono font-bold">{lastAnalysisTime.toLocaleTimeString('pt-BR')}</span>
               </div>
             )}
+            <div className="flex items-center gap-1.5 bg-amber-500/10 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded text-[11px] font-mono font-bold">
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+              Auto-Scan: {countdown}s
+            </div>
           </div>
         </div>
 
@@ -817,16 +825,41 @@ export default function Header({
             )}
           </div>
 
-          {/* Re-analysis Trigger Button */}
-          <button
-            id="reanalyze-now-btn"
-            onClick={onReanalyzeClick}
-            disabled={isAnalyzing}
-            className={`w-full bg-[#f0b90b] hover:bg-[#d4a30a] text-black rounded-xl px-5 py-3 text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-[#f0b90b]/10 cursor-pointer ${isAnalyzing ? 'opacity-50 cursor-not-allowed animate-pulse' : 'animate-pulse-subtle'}`}
-          >
-            <RefreshCw className={`w-4 h-4 text-black ${isAnalyzing ? 'animate-spin' : ''}`} />
-            {isAnalyzing ? "Estudando Mercado com IA..." : "🤖 Analisar Agora & Atualizar Sinais"}
-          </button>
+          {/* Re-analysis Trigger Button with Real-Time 40s Countdown Loop */}
+          <div className="space-y-1.5">
+            <button
+              id="reanalyze-now-btn"
+              onClick={onReanalyzeClick}
+              disabled={isAnalyzing}
+              className={`w-full bg-[#f0b90b] hover:bg-[#d4a30a] text-black rounded-xl px-4 py-3 text-xs sm:text-sm font-black flex items-center justify-between transition-all shadow-lg shadow-[#f0b90b]/15 cursor-pointer ${
+                isAnalyzing ? 'opacity-60 cursor-not-allowed animate-pulse' : 'hover:scale-[1.01]'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <RefreshCw className={`w-4 h-4 text-black shrink-0 ${isAnalyzing ? 'animate-spin' : ''}`} />
+                <span className="truncate">
+                  {isAnalyzing ? "Estudando Mercado com IA..." : "🤖 Analisar Agora & Atualizar Sinais"}
+                </span>
+              </div>
+
+              {!isAnalyzing && (
+                <span className="bg-black/20 text-black border border-black/20 text-[11px] px-2.5 py-0.5 rounded-full font-mono font-black flex items-center gap-1 shrink-0 ml-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-700 animate-ping"></span>
+                  Auto: {countdown}s
+                </span>
+              )}
+            </button>
+            
+            <div className="text-[10.5px] text-gray-400 flex items-center justify-between px-1">
+              <span className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                Loop automático de <strong>40 segundos</strong> ativo
+              </span>
+              <span className="font-mono text-gray-300">
+                Próxima em: <strong className="text-amber-400 font-extrabold">{countdown}s</strong>
+              </span>
+            </div>
+          </div>
           
           <div className="text-[10px] text-gray-500 flex items-center gap-1.5 justify-center mt-0.5">
             <AlertCircle className="w-3.5 h-3.5 text-[#f0b90b] shrink-0" />

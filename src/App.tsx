@@ -163,7 +163,7 @@ export default function App() {
       console.warn('Erro ao salvar taxa de câmbio no localStorage:', e);
     }
   };
-  const [countdown, setCountdown] = useState<number>(1800); // 30 minutes countdown
+  const [countdown, setCountdown] = useState<number>(40); // 40 seconds auto loop
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [lastAnalysisTime, setLastAnalysisTime] = useState<Date | null>(new Date());
   
@@ -606,13 +606,13 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // 30-Minute countdown timer tick
+  // 40-Second auto loop countdown timer tick
   useEffect(() => {
     const timer = setInterval(() => {
       setCountdown(prev => {
         if (prev <= 1) {
           triggerMarketAnalysis();
-          return 1800; // Reset back to 30 min
+          return 40; // Reset back to 40 seconds
         }
         return prev - 1;
       });
@@ -730,7 +730,7 @@ export default function App() {
       logsToPush.forEach(log => pushLog(log));
 
       setLastAnalysisTime(new Date());
-      setCountdown(1800); // Reset timer window
+      setCountdown(40); // Reset timer window to 40 seconds
       pushLog(`🟢 Análise Multi-Períodos concluída com Meta: +${goalPercent}% e Stop: -${stopLossPercent}%!`);
     } catch (err) {
       console.error('Erro na análise local:', err);
@@ -972,6 +972,8 @@ export default function App() {
         onChangeCalcPrice={handleCalcPriceChange}
         calcInvestAmount={calcInvestAmount}
         onChangeCalcInvestAmount={handleCalcInvestAmountChange}
+        countdown={countdown}
+        autoRefreshSeconds={40}
       />
 
       {/* Main Body */}
