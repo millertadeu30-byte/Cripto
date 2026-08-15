@@ -164,6 +164,28 @@ export default function App() {
     }
   };
   const [countdown, setCountdown] = useState<number>(40); // 40 seconds auto loop
+  const [isAutoScanEnabled, setIsAutoScanEnabled] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('binance_assistant_auto_scan_enabled');
+      return saved !== null ? saved === 'true' : true;
+    } catch (e) {
+      return true;
+    }
+  });
+
+  const handleToggleAutoScan = () => {
+    setIsAutoScanEnabled(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem('binance_assistant_auto_scan_enabled', next ? 'true' : 'false');
+      } catch (e) {}
+      pushLog(next ? '▶️ Auto-Scan ativado: recalculando a cada 40 segundos.' : '⏸️ Auto-Scan desligado: cálculos automáticos de 40s pausados.');
+      if (next) {
+        setCountdown(40);
+      }
+      return next;
+    });
+  };
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
   const [lastAnalysisTime, setLastAnalysisTime] = useState<Date | null>(new Date());
   
@@ -606,8 +628,9 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // 40-Second auto loop countdown timer tick
+  // 40-Second auto loop countdown timer tick (runs only when isAutoScanEnabled is true)
   useEffect(() => {
+    if (!isAutoScanEnabled) return;
     const timer = setInterval(() => {
       setCountdown(prev => {
         if (prev <= 1) {
@@ -618,7 +641,7 @@ export default function App() {
       });
     }, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [isAutoScanEnabled]);
 
   // Push beautiful activities to log
   const pushLog = (message: string) => {
@@ -974,6 +997,8 @@ export default function App() {
         onChangeCalcInvestAmount={handleCalcInvestAmountChange}
         countdown={countdown}
         autoRefreshSeconds={40}
+        isAutoScanEnabled={isAutoScanEnabled}
+        onToggleAutoScan={handleToggleAutoScan}
       />
 
       {/* Main Body */}
@@ -1049,6 +1074,9 @@ export default function App() {
               lossPercent={stopLossPercent}
               onChangeGainPercent={handleGoalPercentChange}
               onChangeLossPercent={handleStopLossPercentChange}
+              isAutoScanEnabled={isAutoScanEnabled}
+              onToggleAutoScan={handleToggleAutoScan}
+              countdown={countdown}
             />
 
             {/* Minhas Moedas Ativas / Portfólio */}

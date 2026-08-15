@@ -28,6 +28,8 @@ interface HeaderProps {
   onChangeCalcInvestAmount?: (amount: string) => void;
   countdown?: number;
   autoRefreshSeconds?: number;
+  isAutoScanEnabled?: boolean;
+  onToggleAutoScan?: () => void;
 }
 
 export default function Header({
@@ -55,7 +57,9 @@ export default function Header({
   calcInvestAmount: externalCalcInvestAmount,
   onChangeCalcInvestAmount,
   countdown = 40,
-  autoRefreshSeconds = 40
+  autoRefreshSeconds = 40,
+  isAutoScanEnabled = true,
+  onToggleAutoScan
 }: HeaderProps) {
   const [hideBalances, setHideBalances] = useState(false);
   const [activeTab, setActiveTab] = useState<'geral' | 'spot' | 'alpha' | 'fundos'>('spot');
@@ -671,10 +675,28 @@ export default function Header({
                 <span className="text-gray-200 font-mono font-bold">{lastAnalysisTime.toLocaleTimeString('pt-BR')}</span>
               </div>
             )}
-            <div className="flex items-center gap-1.5 bg-amber-500/10 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded text-[11px] font-mono font-bold">
-              <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-              Auto-Scan: {countdown}s
-            </div>
+            {/* Auto-Scan ON/OFF Interactive Toggle Badge */}
+            <button
+              id="toggle-autoscan-stat-btn"
+              onClick={onToggleAutoScan}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-mono font-bold border transition-all cursor-pointer shadow-sm active:scale-95 ${
+                isAutoScanEnabled
+                  ? 'bg-amber-500/15 text-amber-300 border-amber-500/40 hover:bg-amber-500/25'
+                  : 'bg-gray-800/80 text-gray-400 border-gray-700/60 hover:bg-gray-700/60 hover:text-gray-200'
+              }`}
+              title={isAutoScanEnabled ? "Auto-Scan ligado (40s). Clique para DESLIGAR." : "Auto-Scan desligado. Clique para LIGAR."}
+            >
+              <span className={`w-2 h-2 rounded-full ${isAutoScanEnabled ? 'bg-amber-400 animate-pulse' : 'bg-gray-500'}`}></span>
+              <span>Auto-Scan:</span>
+              <span className={isAutoScanEnabled ? 'text-amber-300 font-extrabold' : 'text-gray-400'}>
+                {isAutoScanEnabled ? `${countdown}s` : 'OFF'}
+              </span>
+              <span className={`text-[9px] px-1 py-0.2 rounded font-sans ml-0.5 ${
+                isAutoScanEnabled ? 'bg-amber-400 text-black font-extrabold' : 'bg-gray-700 text-gray-300'
+              }`}>
+                {isAutoScanEnabled ? 'ON' : 'OFF'}
+              </span>
+            </button>
           </div>
         </div>
 
@@ -825,8 +847,8 @@ export default function Header({
             )}
           </div>
 
-          {/* Re-analysis Trigger Button with Real-Time 40s Countdown Loop */}
-          <div className="space-y-1.5">
+          {/* Re-analysis Trigger Button & Dedicated Auto-Scan ON/OFF Switch */}
+          <div className="space-y-2">
             <button
               id="reanalyze-now-btn"
               onClick={onReanalyzeClick}
@@ -838,26 +860,69 @@ export default function Header({
               <div className="flex items-center gap-2">
                 <RefreshCw className={`w-4 h-4 text-black shrink-0 ${isAnalyzing ? 'animate-spin' : ''}`} />
                 <span className="truncate">
-                  {isAnalyzing ? "Estudando Mercado com IA..." : "🤖 Analisar Agora & Atualizar Sinais"}
+                  {isAnalyzing ? "Estudando Mercado com IA..." : "🤖 Analisar Agora (Manual)"}
                 </span>
               </div>
 
               {!isAnalyzing && (
-                <span className="bg-black/20 text-black border border-black/20 text-[11px] px-2.5 py-0.5 rounded-full font-mono font-black flex items-center gap-1 shrink-0 ml-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-700 animate-ping"></span>
-                  Auto: {countdown}s
+                <span className={`border text-[11px] px-2.5 py-0.5 rounded-full font-mono font-black flex items-center gap-1 shrink-0 ml-2 ${
+                  isAutoScanEnabled 
+                    ? 'bg-black/20 text-black border-black/20' 
+                    : 'bg-black/40 text-black/70 border-black/30'
+                }`}>
+                  <span className={`w-2 h-2 rounded-full ${isAutoScanEnabled ? 'bg-emerald-700 animate-ping' : 'bg-gray-700'}`}></span>
+                  {isAutoScanEnabled ? `Auto: ${countdown}s` : 'Auto: OFF'}
                 </span>
               )}
             </button>
-            
-            <div className="text-[10.5px] text-gray-400 flex items-center justify-between px-1">
-              <span className="flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                Loop automático de <strong>40 segundos</strong> ativo
-              </span>
-              <span className="font-mono text-gray-300">
-                Próxima em: <strong className="text-amber-400 font-extrabold">{countdown}s</strong>
-              </span>
+
+            {/* Dedicated Auto-Scan Switch Component */}
+            <div className="bg-[#1e2026] border border-gray-800/90 rounded-xl p-2.5 flex items-center justify-between gap-3 shadow-inner">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className={`w-3 h-3 rounded-full shrink-0 flex items-center justify-center ${
+                  isAutoScanEnabled ? 'bg-emerald-500/20' : 'bg-gray-800'
+                }`}>
+                  <span className={`w-2 h-2 rounded-full ${
+                    isAutoScanEnabled ? 'bg-[#0ecb81] animate-pulse' : 'bg-gray-500'
+                  }`} />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-xs font-bold text-white">Auto-Scan Automático:</span>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded font-extrabold uppercase ${
+                      isAutoScanEnabled 
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' 
+                        : 'bg-gray-800 text-gray-400 border border-gray-700'
+                    }`}>
+                      {isAutoScanEnabled ? 'LIGADO (40s)' : 'DESLIGADO'}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-gray-400 truncate sm:whitespace-normal">
+                    {isAutoScanEnabled 
+                      ? `Recalculando a cada 40s (próxima atualização em ${countdown}s)`
+                      : 'Loop desligado. O sistema não recalcula sozinho a cada 40s.'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Interactive Toggle Switch */}
+              <button
+                type="button"
+                id="toggle-autoscan-switch"
+                onClick={onToggleAutoScan}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  isAutoScanEnabled ? 'bg-[#f0b90b]' : 'bg-gray-700'
+                }`}
+                role="switch"
+                aria-checked={isAutoScanEnabled}
+                title={isAutoScanEnabled ? "Clique para DESLIGAR o Auto-Scan de 40s" : "Clique para LIGAR o Auto-Scan de 40s"}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-black shadow ring-0 transition duration-200 ease-in-out ${
+                    isAutoScanEnabled ? 'translate-x-5 bg-black' : 'translate-x-0 bg-gray-400'
+                  }`}
+                />
+              </button>
             </div>
           </div>
           

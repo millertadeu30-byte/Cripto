@@ -16,6 +16,9 @@ interface TopRecommendationsProps {
   lossPercent?: number;
   onChangeGainPercent?: (gain: number) => void;
   onChangeLossPercent?: (loss: number) => void;
+  isAutoScanEnabled?: boolean;
+  onToggleAutoScan?: () => void;
+  countdown?: number;
 }
 
 type CategoryType = 'Homologadas' | 'Scalp Rápido' | 'Fundo & Explosão' | 'Todas' | 'Memes' | 'Trending & Novas' | 'Layer 1 / Layer 2' | 'AI & Big Data' | 'DeFi & RWA';
@@ -70,7 +73,10 @@ export default function TopRecommendations({
   gainPercent = 5.5,
   lossPercent = 3.0,
   onChangeGainPercent,
-  onChangeLossPercent
+  onChangeLossPercent,
+  isAutoScanEnabled = true,
+  onToggleAutoScan,
+  countdown = 40
 }: TopRecommendationsProps) {
   // 5m Candle timer
   const [candleInfo, setCandleInfo] = useState(() => analyze5MinCandle());
@@ -264,7 +270,26 @@ export default function TopRecommendations({
           </button>
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+        <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end flex-wrap">
+          {/* Quick Auto-Scan Toggle Chip */}
+          {onToggleAutoScan && (
+            <button
+              onClick={onToggleAutoScan}
+              className={`text-[11px] px-2.5 py-1 rounded-xl border font-mono font-bold flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 ${
+                isAutoScanEnabled 
+                  ? 'bg-amber-500/15 text-amber-300 border-amber-500/40 hover:bg-amber-500/25' 
+                  : 'bg-gray-800 text-gray-400 border-gray-700 hover:text-white'
+              }`}
+              title={isAutoScanEnabled ? "Auto-Scan ativo (40s). Clique para DESLIGAR." : "Auto-Scan desligado. Clique para LIGAR."}
+            >
+              <span className={`w-2 h-2 rounded-full ${isAutoScanEnabled ? 'bg-amber-400 animate-pulse' : 'bg-gray-500'}`} />
+              <span className="hidden xs:inline">Auto-Scan:</span>
+              <span className={isAutoScanEnabled ? 'text-amber-300 font-extrabold' : 'text-gray-400'}>
+                {isAutoScanEnabled ? `${countdown}s` : 'OFF'}
+              </span>
+            </button>
+          )}
+
           {/* Target Gain & Stop Loss Controls - Synced & Persisted */}
           <div className="flex items-center gap-2 bg-[#1e2026] px-3 py-1.5 rounded-xl border border-gray-800">
             <div className="flex items-center gap-1 text-xs text-gray-300 font-bold">
