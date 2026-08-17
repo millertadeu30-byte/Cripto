@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Target, TrendingUp, Sparkles, Clock, AlertCircle, HelpCircle } from 'lucide-react';
+import { Target, TrendingUp, Sparkles, Clock, AlertCircle, HelpCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { Trade, Recommendation } from '../types';
 
 interface ProfitGoalConfiguratorProps {
@@ -20,6 +20,7 @@ export default function ProfitGoalConfigurator({
   onChangeGoalPercent
 }: ProfitGoalConfiguratorProps) {
   const [showExplanation, setShowExplanation] = useState(false);
+  const [isSectionMinimized, setIsSectionMinimized] = useState(false);
 
   // Calculate estimated time for current holdings
   // We can calculate this by looking at their current PNL and typical movement speeds
@@ -140,118 +141,153 @@ export default function ProfitGoalConfigurator({
   return (
     <div id="profit-goal-section" className="bg-[#181a20] rounded-2xl border border-gray-800 p-6 space-y-5">
       
-      {/* Header */}
+      {/* Header with Minimize Toggle */}
       <div className="flex items-center justify-between border-b border-gray-800 pb-3">
         <div className="flex items-center gap-2">
           <Target className="w-5 h-5 text-[#f0b90b]" />
           <h3 className="text-lg font-bold text-white font-sans">Simulador de Meta de Lucro</h3>
         </div>
         
-        <button
-          id="toggle-explanation-btn"
-          onClick={() => setShowExplanation(!showExplanation)}
-          className="text-xs text-gray-400 hover:text-white flex items-center gap-1 bg-gray-900/40 px-2 py-1 rounded border border-gray-800/80 cursor-pointer"
-        >
-          <HelpCircle className="w-3.5 h-3.5" /> Como funciona?
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            id="toggle-explanation-btn"
+            onClick={() => setShowExplanation(!showExplanation)}
+            className="text-xs text-gray-400 hover:text-white flex items-center gap-1 bg-gray-900/40 px-2 py-1 rounded border border-gray-800/80 cursor-pointer"
+          >
+            <HelpCircle className="w-3.5 h-3.5" /> Como funciona?
+          </button>
+
+          <button
+            type="button"
+            id="toggle-minimize-profit-goal-btn"
+            onClick={() => setIsSectionMinimized(prev => !prev)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#1e2026] hover:bg-[#282b33] border border-gray-700 hover:border-[#f0b90b] text-white text-xs font-bold transition-all cursor-pointer shadow-sm active:scale-95 shrink-0"
+            title={isSectionMinimized ? "Expandir Simulador de Metas" : "Minimizar Simulador de Metas"}
+          >
+            <span className="text-[11px] font-extrabold text-[#f0b90b]">{isSectionMinimized ? "▴ Expandir Quadro" : "▾ Minimizar"}</span>
+            {isSectionMinimized ? <ChevronDown className="w-4 h-4 text-[#f0b90b]" /> : <ChevronUp className="w-4 h-4 text-gray-300" />}
+          </button>
+        </div>
       </div>
 
-      {showExplanation && (
-        <div className="text-xs text-gray-300 bg-gray-950/40 p-4 rounded-xl border border-gray-800 leading-relaxed space-y-1.5 animate-in fade-in duration-200">
-          <p className="font-semibold text-[#f0b90b]">Como o cálculo é feito?</p>
-          <p>
-            Analisamos o preço de compra das suas moedas cadastradas comparando com o preço em tempo real da Binance.
-            Usando a velocidade média de oscilação do mercado para cada tipo de ativo (ex: Bitcoin move-se mais devagar, moedas meme de altíssimo risco movem-se mais rápido), calculamos o tempo estimado para bater a meta.
-          </p>
+      {/* Collapsed State Summary */}
+      {isSectionMinimized && (
+        <div 
+          onClick={() => setIsSectionMinimized(false)}
+          className="bg-[#14151a] hover:bg-[#1a1d24] border border-gray-800 rounded-xl p-3.5 flex items-center justify-between cursor-pointer transition-all text-xs"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-base">🎯</span>
+            <span className="text-gray-300 font-semibold">
+              Simulador Minimizado • Meta Atual: <strong className="text-[#f0b90b] font-bold">+{goalPercent}%</strong> ({projections.estimatedHours === 0 ? "Bateu Alvo" : `${projections.estimatedHours}h estimadas`})
+            </span>
+          </div>
+          <span className="text-[#f0b90b] text-xs font-bold flex items-center gap-1">
+            Clique para configurar <ChevronDown className="w-4 h-4" />
+          </span>
         </div>
       )}
 
-      {/* Main Goal Selector Row */}
-      <div className="bg-[#1e2026] rounded-xl border border-gray-800 p-5 space-y-4">
-        
-        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-          <div>
-            <span className="text-xs text-gray-400 font-semibold uppercase tracking-wider block">Meta de Lucro Desejada</span>
-            <span className="text-sm text-gray-500">Configure quanto lucro você almeja por operação</span>
-          </div>
+      {!isSectionMinimized && (
+        <>
+          {showExplanation && (
+            <div className="text-xs text-gray-300 bg-gray-950/40 p-4 rounded-xl border border-gray-800 leading-relaxed space-y-1.5 animate-in fade-in duration-200">
+              <p className="font-semibold text-[#f0b90b]">Como o cálculo é feito?</p>
+              <p>
+                Analisamos o preço de compra das suas moedas cadastradas comparando com o preço em tempo real da Binance.
+                Usando a velocidade média de oscilação do mercado para cada tipo de ativo (ex: Bitcoin move-se mais devagar, moedas meme de altíssimo risco movem-se mais rápido), calculamos o tempo estimado para bater a meta.
+              </p>
+            </div>
+          )}
 
-          {/* Quick preset buttons & custom setting */}
-          <div className="flex flex-wrap gap-2">
-            {[2, 5, 10, 15, 20].map((preset) => (
-              <button
-                id={`preset-${preset}-btn`}
-                key={preset}
-                onClick={() => onChangeGoalPercent(preset)}
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all border cursor-pointer ${goalPercent === preset ? 'bg-[#f0b90b] text-black border-[#f0b90b]' : 'bg-[#2b2f36] text-gray-300 border-gray-800 hover:text-white'}`}
-              >
-                +{preset}%
-              </button>
-            ))}
-          </div>
-        </div>
+          {/* Main Goal Selector Row */}
+          <div className="bg-[#1e2026] rounded-xl border border-gray-800 p-5 space-y-4">
+            
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+              <div>
+                <span className="text-xs text-gray-400 font-semibold uppercase tracking-wider block">Meta de Lucro Desejada</span>
+                <span className="text-sm text-gray-500">Configure quanto lucro você almeja por operação</span>
+              </div>
 
-        {/* Custom Input Slider */}
-        <div className="space-y-2 pt-2">
-          <div className="flex justify-between items-center text-xs font-mono">
-            <span className="text-gray-400">Arraste para ajustar livremente:</span>
-            <span id="current-goal-display" className="text-[#f0b90b] font-bold text-sm bg-[#f0b90b]/10 px-2 py-0.5 rounded">
-              +{goalPercent}% de Lucro Esperado
-            </span>
-          </div>
-          <input
-            id="goal-percent-slider"
-            type="range"
-            min="1"
-            max="50"
-            step="1"
-            value={goalPercent}
-            onChange={(e) => onChangeGoalPercent(Number(e.target.value))}
-            className="w-full accent-[#f0b90b] bg-gray-800 h-2 rounded-lg appearance-none cursor-pointer"
-          />
-        </div>
+              {/* Quick preset buttons & custom setting */}
+              <div className="flex flex-wrap gap-2">
+                {[2, 5, 10, 15, 20].map((preset) => (
+                  <button
+                    id={`preset-${preset}-btn`}
+                    key={preset}
+                    onClick={() => onChangeGoalPercent(preset)}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all border cursor-pointer ${goalPercent === preset ? 'bg-[#f0b90b] text-black border-[#f0b90b]' : 'bg-[#2b2f36] text-gray-300 border-gray-800 hover:text-white'}`}
+                  >
+                    +{preset}%
+                  </button>
+                ))}
+              </div>
+            </div>
 
-      </div>
-
-      {/* Projection Results */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        
-        {/* Left Card: Estimate for Current Portfolio */}
-        <div className="bg-[#1e2026] border border-gray-800 rounded-xl p-4 flex flex-col justify-between">
-          <div>
-            <span className="text-[10px] text-gray-500 font-bold block uppercase tracking-wider mb-2">Tempo Estimado (Carteira Atual)</span>
-            <div className="flex items-baseline gap-1.5 mb-2">
-              <span id="estimated-time-display" className="text-2xl font-extrabold font-mono text-white">
-                {projections.estimatedHours === 0 ? "BATEU ALVO!" : `${projections.estimatedHours}h`}
-              </span>
-              {projections.estimatedHours > 0 && (
-                <span className="text-xs text-gray-400 font-sans flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5 text-[#f0b90b]" /> {projections.hasHoldings ? "estimativa" : "sugestão da IA"}
+            {/* Custom Input Slider */}
+            <div className="space-y-2 pt-2">
+              <div className="flex justify-between items-center text-xs font-mono">
+                <span className="text-gray-400">Arraste para ajustar livremente:</span>
+                <span id="current-goal-display" className="text-[#f0b90b] font-bold text-sm bg-[#f0b90b]/10 px-2 py-0.5 rounded">
+                  +{goalPercent}% de Lucro Esperado
                 </span>
-              )}
+              </div>
+              <input
+                id="goal-percent-slider"
+                type="range"
+                min="1"
+                max="50"
+                step="1"
+                value={goalPercent}
+                onChange={(e) => onChangeGoalPercent(Number(e.target.value))}
+                className="w-full accent-[#f0b90b] bg-gray-800 h-2 rounded-lg appearance-none cursor-pointer"
+              />
             </div>
-            <p className="text-xs text-gray-300 leading-relaxed bg-[#0b0e11]/55 p-3 rounded-lg border border-gray-900 italic">
-              "{projections.reasoning}"
-            </p>
-          </div>
-        </div>
 
-        {/* Right Card: Easiest Recommended Asset to Hit Goal */}
-        <div className="bg-[#1e2026] border border-gray-800 rounded-xl p-4 flex flex-col justify-between">
-          <div>
-            <span className="text-[10px] text-gray-500 font-bold block uppercase tracking-wider mb-2">Moeda Mais Fácil de Bater a Meta</span>
-            <div className="flex items-baseline gap-1.5 mb-2">
-              <span id="easiest-asset-display" className="text-lg font-bold text-[#0ecb81] font-sans flex items-center gap-1.5">
-                <TrendingUp className="w-4 h-4 shrink-0 text-[#0ecb81]" />
-                {projections.easiestAssetToGoal}
-              </span>
+          </div>
+
+          {/* Projection Results */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            
+            {/* Left Card: Estimate for Current Portfolio */}
+            <div className="bg-[#1e2026] border border-gray-800 rounded-xl p-4 flex flex-col justify-between">
+              <div>
+                <span className="text-[10px] text-gray-500 font-bold block uppercase tracking-wider mb-2">Tempo Estimado (Carteira Atual)</span>
+                <div className="flex items-baseline gap-1.5 mb-2">
+                  <span id="estimated-time-display" className="text-2xl font-extrabold font-mono text-white">
+                    {projections.estimatedHours === 0 ? "BATEU ALVO!" : `${projections.estimatedHours}h`}
+                  </span>
+                  {projections.estimatedHours > 0 && (
+                    <span className="text-xs text-gray-400 font-sans flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5 text-[#f0b90b]" /> {projections.hasHoldings ? "estimativa" : "sugestão da IA"}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-gray-300 leading-relaxed bg-[#0b0e11]/55 p-3 rounded-lg border border-gray-900 italic">
+                  "{projections.reasoning}"
+                </p>
+              </div>
             </div>
-            <p className="text-xs text-gray-300 leading-relaxed bg-[#0b0e11]/55 p-3 rounded-lg border border-gray-900 italic">
-              "{projections.easiestAssetReason}"
-            </p>
-          </div>
-        </div>
 
-      </div>
+            {/* Right Card: Easiest Recommended Asset to Hit Goal */}
+            <div className="bg-[#1e2026] border border-gray-800 rounded-xl p-4 flex flex-col justify-between">
+              <div>
+                <span className="text-[10px] text-gray-500 font-bold block uppercase tracking-wider mb-2">Moeda Mais Fácil de Bater a Meta</span>
+                <div className="flex items-baseline gap-1.5 mb-2">
+                  <span id="easiest-asset-display" className="text-lg font-bold text-[#0ecb81] font-sans flex items-center gap-1.5">
+                    <TrendingUp className="w-4 h-4 shrink-0 text-[#0ecb81]" />
+                    {projections.easiestAssetToGoal}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-300 leading-relaxed bg-[#0b0e11]/55 p-3 rounded-lg border border-gray-900 italic">
+                  "{projections.easiestAssetReason}"
+                </p>
+              </div>
+            </div>
+
+          </div>
+        </>
+      )}
 
     </div>
   );

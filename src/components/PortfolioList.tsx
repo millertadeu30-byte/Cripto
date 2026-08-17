@@ -29,6 +29,7 @@ export default function PortfolioList({
   // 5-Minute Candle analysis timer
   const [candleInfo, setCandleInfo] = useState(() => analyze5MinCandle());
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [isSectionMinimized, setIsSectionMinimized] = useState<boolean>(false);
 
   // Multi-Selection State for selling specific coins
   const [selectedTradeIds, setSelectedTradeIds] = useState<Set<string>>(new Set());
@@ -435,7 +436,7 @@ export default function PortfolioList({
   return (
     <div id="portfolio-section" className="bg-[#181a20] rounded-2xl border border-gray-800 p-6 space-y-6">
       
-      {/* Title */}
+      {/* Title Header with Minimize Button */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between border-b border-gray-800 pb-4 gap-3">
         <div className="flex items-center gap-2">
           <h3 className="text-lg font-bold text-white font-sans flex items-center gap-2">
@@ -444,14 +445,49 @@ export default function PortfolioList({
           <span className="text-[10px] bg-[#f0b90b]/10 text-[#f0b90b] px-1.5 py-0.5 rounded font-bold font-mono">FIBONACCI PRÓ</span>
         </div>
         
-        {/* Target Calculation Mode Selection */}
-        {trades.length > 0 && (
-          <div className="flex items-center gap-1.5 bg-[#f0b90b]/10 text-[#f0b90b] px-3.5 py-1.5 rounded-xl border border-[#f0b90b]/25 text-xs font-bold font-sans self-start lg:self-auto shadow-sm">
-            <span>🛡️ Fórmula Híbrida: Decisão IA + Fibonacci</span>
-            <span className="bg-[#f0b90b] text-black px-1.5 py-0.5 rounded text-[9.5px] uppercase font-black">Meta +{goalPercent}%</span>
-          </div>
-        )}
+        <div className="flex items-center gap-2.5 flex-wrap self-start lg:self-auto">
+          {/* Target Calculation Mode Selection */}
+          {trades.length > 0 && (
+            <div className="flex items-center gap-1.5 bg-[#f0b90b]/10 text-[#f0b90b] px-3.5 py-1.5 rounded-xl border border-[#f0b90b]/25 text-xs font-bold font-sans shadow-sm">
+              <span>🛡️ Fórmula Híbrida: Decisão IA + Fibonacci</span>
+              <span className="bg-[#f0b90b] text-black px-1.5 py-0.5 rounded text-[9.5px] uppercase font-black">Meta +{goalPercent}%</span>
+            </div>
+          )}
+
+          {/* Minimize / Expand Toggle Button */}
+          <button
+            type="button"
+            id="toggle-minimize-portfolio-btn"
+            onClick={() => setIsSectionMinimized(prev => !prev)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#1e2026] hover:bg-[#282b33] border border-gray-700 hover:border-[#f0b90b] text-white text-xs font-bold transition-all cursor-pointer shadow-sm active:scale-95 shrink-0"
+            title={isSectionMinimized ? "Expandir Minhas Moedas" : "Minimizar Minhas Moedas"}
+          >
+            <span className="text-[11px] font-extrabold text-[#f0b90b]">{isSectionMinimized ? "▴ Expandir Quadro" : "▾ Minimizar"}</span>
+            {isSectionMinimized ? <ChevronDown className="w-4 h-4 text-[#f0b90b]" /> : <ChevronUp className="w-4 h-4 text-gray-300" />}
+          </button>
+        </div>
       </div>
+
+      {/* Collapsed State Summary */}
+      {isSectionMinimized && (
+        <div 
+          onClick={() => setIsSectionMinimized(false)}
+          className="bg-[#14151a] hover:bg-[#1a1d24] border border-gray-800 rounded-xl p-3.5 flex items-center justify-between cursor-pointer transition-all text-xs"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-base">💼</span>
+            <span className="text-gray-300 font-semibold">
+              Carteira Minimizada • <strong className="text-white font-mono">{trades.length}</strong> operações ativas
+            </span>
+          </div>
+          <span className="text-[#f0b90b] text-xs font-bold flex items-center gap-1">
+            Clique para ver operações <ChevronDown className="w-4 h-4" />
+          </span>
+        </div>
+      )}
+
+      {!isSectionMinimized && (
+        <div className="space-y-6">
 
       {/* Binance Sub-Header for Assets Filter & View Controls */}
       {trades.length > 0 && (
@@ -1809,6 +1845,9 @@ export default function PortfolioList({
             </button>
           </div>
         </div>
+      )}
+
+      </div>
       )}
 
       {/* Batch Sell Confirmation Modal for Selected Coins */}

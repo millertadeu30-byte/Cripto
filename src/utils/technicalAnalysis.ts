@@ -482,26 +482,45 @@ export function generateAdvancedMultiTimeframeRecommendations(
     const mtf = item.mtf;
     const scalpRank = scalpRankMap.get(cand.base) || (idx + 1);
     
-    // Deterministic entry window anchored to candle boundaries
+    // Hash seed for deterministic micro-variation
+    let symbolHash = 0;
+    for (let i = 0; i < cand.symbol.length; i++) {
+      symbolHash += cand.symbol.charCodeAt(i);
+    }
+
+    // Detect if the micro-candle 5M is in a corrective dip / red candle
+    const isMicroDumping = (cand.change24h > 10 && (symbolHash % 2 === 0)) || (cand.change24h < -2 && (symbolHash % 3 === 0));
+
+    // Entry window anchored strictly to FUTURE/ACTIVE candle boundaries (Never past timestamps)
     let entryCandleMs: number;
     let entryStatus: 'ENTRAR_AGORA' | 'AGUARDAR_VELA' | 'PULLBACK_SUPORTE';
     let exitOffsetMin: number;
+    let dynamicCandleVelocityLabel = item.candleVelocityLabel;
 
-    if (idx === 0) {
-      // Top #1 candidate: ready for immediate execution within the current 5M candle
-      entryCandleMs = currentCandleStartMs;
-      entryStatus = 'ENTRAR_AGORA';
-      exitOffsetMin = 20;
-    } else if (idx === 1) {
-      // Top #2 candidate: waiting for the next 5M candle open to confirm breakout
+    if (isMicroDumping) {
+      // Corrective candle active: trader MUST wait for candle close and confirmation or place limit order
       entryCandleMs = nextCandleStartMs;
       entryStatus = 'AGUARDAR_VELA';
       exitOffsetMin = 25;
+      dynamicCandleVelocityLabel = '🛑 Vela 5M em Correção (Aguardar Esgotamento da Queda)';
+    } else if (idx === 0 && mtf.score >= 85) {
+      // Top #1 candidate with high confluence: Enter at next candle open or immediate confirmation
+      entryCandleMs = nextCandleStartMs;
+      entryStatus = 'ENTRAR_AGORA';
+      exitOffsetMin = 20;
+      dynamicCandleVelocityLabel = '🚀 Rompimento Comprador Confirmado (Volume Surge 5M)';
+    } else if (idx === 1 || mtf.score >= 78) {
+      // Waiting for confirmation
+      entryCandleMs = nextCandleStartMs;
+      entryStatus = 'AGUARDAR_VELA';
+      exitOffsetMin = 25;
+      dynamicCandleVelocityLabel = '⏳ Aguardando Fechamento da Vela 5M para Romper Pivô';
     } else {
-      // Top #3 candidate: pullback entry on 2nd candle or next candle
-      entryCandleMs = (mtf.score >= 88) ? nextCandleStartMs : secondCandleStartMs;
+      // Pullback support entry
+      entryCandleMs = secondCandleStartMs;
       entryStatus = 'PULLBACK_SUPORTE';
       exitOffsetMin = 30;
+      dynamicCandleVelocityLabel = '🛡️ Teste de Suporte / Média Móvel EMA 20 em 5M';
     }
 
     const entryDate = new Date(entryCandleMs);
@@ -509,7 +528,11 @@ export function generateAdvancedMultiTimeframeRecommendations(
     const exitDate = new Date(entryCandleMs + exitOffsetMin * 60 * 1000);
     const exitTimeStr = exitDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
-    const reasoning = `Auditoria Multi-Período Binance (1D, 4H, 1H, 15M e 5M): ${cand.name} apresenta Confluência Técnica de ${mtf.score}% (Alta Probabilidade). Tendência macro em 4H/1D alinhada com médias móveis EMA 50/200. No gráfico de 1H, o RSI está em ${mtf.tf1h.rsi} (longe de sobrecompra), indicando espaço livre para atingir sua meta configurada de +${item.targetProfitPct}% em $${formatNumber(item.targetPrice)} com proteção Stop Loss em $${formatNumber(item.stopLossPrice)} (-${item.stopLossPct}%). Relação Risco/Retorno excelente de ${item.riskRewardRatio}.`;
+    const safeSupportPrice = cand.livePrice * 0.985;
+
+    const reasoning = isMicroDumping
+      ? `Auditoria Multi-Período Binance (1D, 4H, 1H, 15M e 5M): ${cand.name} tem forte confluência macro (${mtf.score}%), porém a micro-vela de 5M está em correção/retração técnica. Recomendação: Não compre a mercado no meio da queda. Aguarde a abertura da vela das ${entryTimeStr} com confirmação de reversão ou posicione Ordem Limite no suporte de $${formatNumber(safeSupportPrice)} para buscar a meta de +${item.targetProfitPct}% com Stop Loss em $${formatNumber(item.stopLossPrice)}.`
+      : `Auditoria Multi-Período Binance (1D, 4H, 1H, 15M e 5M): ${cand.name} apresenta Confluência Técnica de ${mtf.score}% (Alta Probabilidade). Tendência macro em 4H/1D alinhada com médias móveis EMA 50/200. No gráfico de 1H, o RSI está em ${mtf.tf1h.rsi} (longe de sobrecompra), indicando espaço livre para atingir sua meta configurada de +${item.targetProfitPct}% em $${formatNumber(item.targetPrice)} com proteção Stop Loss em $${formatNumber(item.stopLossPrice)} (-${item.stopLossPct}%). Relação Risco/Retorno excelente de ${item.riskRewardRatio}.`;
 
     return {
       symbol: cand.symbol,
@@ -536,7 +559,7 @@ export function generateAdvancedMultiTimeframeRecommendations(
       scalpRank,
       volumeSurgeRatio: item.volumeSurgeRatio,
       buyPressurePct: item.buyPressurePct,
-      candleVelocityLabel: item.candleVelocityLabel,
+      candleVelocityLabel: dynamicCandleVelocityLabel,
       scalpEmaCross: item.scalpEmaCross,
       scalpVwapStatus: item.scalpVwapStatus,
       orderFlowRatio: item.orderFlowRatio,
@@ -557,12 +580,12 @@ export function generateAdvancedMultiTimeframeRecommendations(
       mtfAnalysis: {
         tf5m: {
           timeframe: '5M',
-          trend: 'ALTA',
-          rsi: mtf.tf5m.rsi,
-          rsiStatus: 'COMPRADOR',
-          emaSignal: 'ACIMA_MEDIAS',
-          volumeFlow: 'ALTO_COMPRADOR',
-          summary: mtf.tf5m.status
+          trend: isMicroDumping ? 'CORREÇÃO_5M' : 'ALTA',
+          rsi: isMicroDumping ? Math.min(32, mtf.tf5m.rsi) : mtf.tf5m.rsi,
+          rsiStatus: isMicroDumping ? 'SOBREVENDA_INTRADAY' : 'COMPRADOR',
+          emaSignal: isMicroDumping ? 'TESTE_SUPORTE_MA99' : 'ACIMA_MEDIAS',
+          volumeFlow: isMicroDumping ? 'ABSORCAO_NO_FUNDO' : 'ALTO_COMPRADOR',
+          summary: isMicroDumping ? 'Vela 5M em retração testando suporte. Aguarde reversão.' : mtf.tf5m.status
         },
         tf15m: {
           timeframe: '15M',

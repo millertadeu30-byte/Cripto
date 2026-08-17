@@ -106,6 +106,8 @@ export default function TopRecommendations({
   const [isNightBannerExpanded, setIsNightBannerExpanded] = useState<boolean>(false);
   const [isSectionMinimized, setIsSectionMinimized] = useState<boolean>(false);
   const [showBottomStudyModal, setShowBottomStudyModal] = useState<boolean>(false);
+  const [showCandleStudyModal, setShowCandleStudyModal] = useState<boolean>(false);
+  const [selectedStudySymbol, setSelectedStudySymbol] = useState<string | null>(null);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -329,16 +331,37 @@ export default function TopRecommendations({
             </div>
           </div>
 
+          {/* Minimize / Expand Toggle Button - Visible on all screen sizes */}
           <button
+            type="button"
+            id="toggle-minimize-recommendations-btn"
             onClick={() => setIsSectionMinimized(prev => !prev)}
-            className="hidden sm:flex text-gray-400 hover:text-white p-1.5 rounded-lg bg-[#1e2026] border border-gray-800 text-xs items-center gap-1 shrink-0 cursor-pointer"
-            title={isSectionMinimized ? "Expandir Radar" : "Minimizar Radar"}
+            className="flex items-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-xl bg-[#1e2026] hover:bg-[#282b33] border border-gray-700 hover:border-[#f0b90b] text-white text-xs font-bold transition-all cursor-pointer shadow-sm active:scale-95 shrink-0"
+            title={isSectionMinimized ? "Expandir Painel de Recomendações" : "Minimizar Painel de Recomendações"}
           >
-            <span className="text-[11px] font-bold">{isSectionMinimized ? "Expandir" : "Minimizar"}</span>
-            {isSectionMinimized ? <ChevronDown className="w-4 h-4 text-[#f0b90b]" /> : <ChevronUp className="w-4 h-4 text-gray-400" />}
+            <span className="text-[11px] font-extrabold text-[#f0b90b]">{isSectionMinimized ? "▴ Expandir Quadro" : "▾ Minimizar"}</span>
+            {isSectionMinimized ? <ChevronDown className="w-4 h-4 text-[#f0b90b]" /> : <ChevronUp className="w-4 h-4 text-gray-300" />}
           </button>
         </div>
       </div>
+
+      {/* Collapsed State Summary when Minimized */}
+      {isSectionMinimized && (
+        <div 
+          onClick={() => setIsSectionMinimized(false)}
+          className="bg-[#14151a] hover:bg-[#1a1d24] border border-gray-800 rounded-xl p-3.5 flex items-center justify-between cursor-pointer transition-all text-xs"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-base">📈</span>
+            <span className="text-gray-300 font-semibold">
+              Quadro Minimizado • <strong className="text-white font-mono">{filteredRecs.length}</strong> moedas analisadas (Top: <span className="text-[#f0b90b] font-bold">{filteredRecs[0]?.symbol || 'Nenhum'}</span>)
+            </span>
+          </div>
+          <span className="text-[#f0b90b] text-xs font-bold flex items-center gap-1">
+            Clique para abrir quadro completo <ChevronDown className="w-4 h-4" />
+          </span>
+        </div>
+      )}
 
       {!isSectionMinimized && (
         <div className="space-y-4">
@@ -914,6 +937,20 @@ export default function TopRecommendations({
                         </div>
                       </div>
                     </div>
+
+                    {/* Estudo de Velas & Hora Certa de Entrar Button */}
+                    <div className="pt-1.5 border-t border-gray-800/80 flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedStudySymbol(rec.symbol);
+                          setShowCandleStudyModal(true);
+                        }}
+                        className="text-[10px] text-amber-400 hover:text-amber-300 font-extrabold flex items-center gap-1 cursor-pointer bg-amber-500/10 hover:bg-amber-500/20 px-2 py-1 rounded border border-amber-500/30 transition-colors w-full justify-center"
+                      >
+                        <span>📖 Estudo de Velas: Como Saber a Hora Certa de Entrar?</span>
+                      </button>
+                    </div>
                   </div>
 
                   {/* Estudo Estratégico de Entrada na Binance (Ordem Limite no Suporte vs A Mercado) */}
@@ -1225,6 +1262,92 @@ export default function TopRecommendations({
                 className="w-full bg-cyan-500 hover:bg-cyan-400 text-black font-extrabold py-2.5 rounded-xl text-xs transition-colors cursor-pointer"
               >
                 Ver Moedas Selecionadas na Aba "Fundo & Explosão"
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Candle Price Action & Entry Timing Study Modal */}
+      {showCandleStudyModal && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 overflow-y-auto flex items-start sm:items-center justify-center p-3 sm:p-4">
+          <div className="bg-[#181a20] border border-amber-500/40 rounded-2xl w-full max-w-2xl shadow-2xl p-5 sm:p-6 my-auto font-sans space-y-4 text-xs text-gray-300">
+            <div className="flex items-center justify-between border-b border-gray-800 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="bg-amber-500/20 text-amber-300 text-xs px-2.5 py-1 rounded-lg font-bold">
+                  🕯️ Estudo de Velas & Price Action
+                </span>
+                <h4 className="text-base font-bold text-white">
+                  Como Saber a Hora Exata de Entrar Sem Pegar Velas de Queda?
+                </h4>
+              </div>
+              <button 
+                onClick={() => setShowCandleStudyModal(false)}
+                className="text-gray-400 hover:text-white transition-colors cursor-pointer text-base"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3.5 leading-relaxed">
+              
+              {/* Point 1: Por que não entrar em vela vermelha caindo */}
+              <div className="bg-[#1e2026] p-3.5 rounded-xl border border-red-500/30 space-y-1.5">
+                <div className="flex items-center gap-2 text-red-400 font-bold text-sm">
+                  <span>🛑</span>
+                  <span>1. Regra de Ouro: NUNCA compre a mercado durante uma Vela Vermelha ativa!</span>
+                </div>
+                <p className="text-gray-300 text-[11px]">
+                  Se você olhar o gráfico e a vela de 5M estiver <strong>vermelha e furando médias móveis (MA7 / MA25) para baixo</strong>, isso é uma correção ativa. Entrar a mercado nesse momento é tentar "segurar uma faca caindo". Você deve aguardar a vela fechar e encontrar suporte.
+                </p>
+              </div>
+
+              {/* Point 2: Como saber a hora exata da próxima vela */}
+              <div className="bg-[#1e2026] p-3.5 rounded-xl border border-amber-500/30 space-y-1.5">
+                <div className="flex items-center gap-2 text-amber-300 font-bold text-sm">
+                  <span>⏳</span>
+                  <span>2. O Gatilho do Próximo Candle (Ciclo de 5 Minutos)</span>
+                </div>
+                <p className="text-gray-300 text-[11px]">
+                  As velas da Binance abrem e fecham em intervalos múltiplos de 5 min (ex: 18:40, 18:45, 18:50, 18:55).
+                  <br />• <strong>O Momento Certo:</strong> Aguarde a contagem regressiva da vela atual (ex: restam <em>{candleInfo.remainingStr}</em>).
+                  <br />• Na abertura da vela seguinte às <strong className="text-white font-mono">{candleInfo.nextEntryTime}</strong>, observe: se os compradores rejeitarem o fundo formando um <strong>Martelo ou Candle Verde</strong>, o sinal de entrada está confirmado!
+                </p>
+              </div>
+
+              {/* Point 3: Estratégia de Ordem Limite no Suporte */}
+              <div className="bg-[#1e2026] p-3.5 rounded-xl border border-emerald-500/30 space-y-1.5">
+                <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
+                  <span>🛡️</span>
+                  <span>3. Estratégia de Ordem Limite no Suporte (Mais Segura)</span>
+                </div>
+                <p className="text-gray-300 text-[11px]">
+                  Em vez de comprar a mercado com pressa, use a ferramenta <strong>"Ponto Seguro de Entrada"</strong> do card:
+                  <br />• O sistema calcula o suporte real da <strong>MA99 ou Fundo Triplo</strong> (cerca de 0.5% a 2% abaixo do preço atual).
+                  <br />• Deixe armada uma <strong>Ordem Limite na Binance</strong> no preço sugerido. Quando o candle der a "espetada" de retração para baixo, sua ordem é executada com o melhor preço possível antes do repique de alta!
+                </p>
+              </div>
+
+              {/* Point 4: OCO Protegido */}
+              <div className="bg-[#1e2026] p-3.5 rounded-xl border border-blue-500/30 space-y-1.5">
+                <div className="flex items-center gap-2 text-blue-400 font-bold text-sm">
+                  <span>🎯</span>
+                  <span>4. Alvo e Stop Automático</span>
+                </div>
+                <p className="text-gray-300 text-[11px]">
+                  Assim que sua ordem for executada, coloque imediatamente o Stop Loss no ponto sugerido. Nunca opere sem Stop, especialmente em moedas de alta volatilidade!
+                </p>
+              </div>
+
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setShowCandleStudyModal(false)}
+                className="w-full bg-amber-500 hover:bg-amber-400 text-black font-extrabold py-2.5 rounded-xl text-xs transition-colors cursor-pointer"
+              >
+                Entendi! Voltar ao Painel
               </button>
             </div>
           </div>
