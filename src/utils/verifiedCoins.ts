@@ -64,7 +64,9 @@ export const KNOWN_BINANCE_NAMES: { [base: string]: string } = {
   PENDLE: 'Pendle Finance',
   ENA: 'Ethena Labs',
   KAVA: 'Kava',
-  // Trending Altcoins, Memes & Hot Binance Spot listings
+  // Trending Altcoins, Deep Bottom Reversals, Memes & Hot Binance Spot listings
+  TUT: 'Tutellus (TUT)',
+  EDEN: 'Eden Games (EDEN)',
   AVNT: 'Aventis Metaverse (AVNT)',
   HOME: 'Home Protocol (HOME)',
   NEIRO: 'First Neiro on Ethereum',

@@ -824,23 +824,29 @@ export default function App() {
     setTimeout(triggerMarketAnalysis, 1000);
   };
 
-  // Close trade (user sold)
-  const handleCloseTrade = (id: string, exitPrice: number) => {
+  // Close trade (user sold) - supports partial amount or full amount
+  const handleCloseTrade = (id: string, exitPrice: number, partialAmount?: number) => {
     const trade = trades.find(t => t.id === id);
     if (!trade) return;
 
-    const purchaseValue = trade.purchasePrice * trade.amount;
-    const exitValue = exitPrice * trade.amount;
+    const isPartial = partialAmount !== undefined && partialAmount > 0 && partialAmount < trade.amount;
+    const soldAmount = isPartial ? partialAmount! : trade.amount;
+    const remainingAmount = trade.amount - soldAmount;
+
+    const purchaseValue = trade.purchasePrice * soldAmount;
+    const exitValue = exitPrice * soldAmount;
     const pnlValueCurrency = exitValue - purchaseValue;
     
     // Compute PNL in BRL for historic stats tracker
     let pnlBrl = pnlValueCurrency;
     if (trade.currency === 'USDT') {
-      pnlBrl = pnlValueCurrency * usdtBrl;
+      pnlBrl = pnlValueCurrency * (usdtBrl || 5.62);
     }
 
     const closedRecord = {
       ...trade,
+      amount: soldAmount,
+      totalInvested: trade.purchasePrice * soldAmount,
       exitPrice,
       exitTime: new Date().toISOString(),
       finalPnlValue: pnlValueCurrency,
@@ -849,7 +855,24 @@ export default function App() {
     };
 
     const updatedHistory = [closedRecord, ...history];
-    const updatedTrades = trades.filter(t => t.id !== id);
+    let updatedTrades: Trade[];
+
+    if (isPartial) {
+      // Keep remaining trade position
+      updatedTrades = trades.map(t => {
+        if (t.id === id) {
+          return {
+            ...t,
+            amount: remainingAmount,
+            totalInvested: t.purchasePrice * remainingAmount
+          };
+        }
+        return t;
+      });
+    } else {
+      // Fully closed
+      updatedTrades = trades.filter(t => t.id !== id);
+    }
 
     setHistory(updatedHistory);
     setTrades(updatedTrades);
@@ -860,10 +883,11 @@ export default function App() {
     } catch(e) {}
 
     const winEmoji = pnlBrl >= 0 ? '🎉 Lucro realizado!' : '📉 Perda cortada.';
-    pushLog(`🔥 ${winEmoji} Moeda ${trade.symbol} vendida a ${exitPrice}. Resultado: ${pnlBrl >= 0 ? '+' : ''}R$ ${pnlBrl.toFixed(2)} (${closedRecord.finalPnlPercent.toFixed(2)}%)!`);
+    const partialNotice = isPartial ? ` (Venda Parcial de ${soldAmount.toLocaleString('pt-BR')} de ${trade.amount.toLocaleString('pt-BR')} unidades)` : '';
+    pushLog(`🔥 ${winEmoji} Moeda ${trade.symbol} vendida a ${exitPrice}${partialNotice}. Resultado: ${pnlBrl >= 0 ? '+' : ''}R$ ${pnlBrl.toFixed(2)} (${closedRecord.finalPnlPercent.toFixed(2)}%)!`);
     
     // Add the exit sold value back to available cash balance
-    const rate = usdtBrl || 5.15;
+    const rate = usdtBrl || 5.62;
     let refund = exitValue;
     if (trade.currency !== cashBalanceCurrency) {
       refund = cashBalanceCurrency === 'BRL' ? exitValue * rate : exitValue / rate;
@@ -872,6 +896,82 @@ export default function App() {
     handleUpdateCashBalance(newCashBalance, cashBalanceCurrency);
 
     saveToCloud(syncId, updatedTrades, updatedHistory, newCashBalance, cashBalanceCurrency, displayCurrency, goalPercent, true);
+  };
+
+  // Close multiple selected trades in batch
+  const handleCloseBatchTrades = (items: { id: string; exitPrice: number; partialAmount?: number }[]) => {
+    if (!items || items.length === 0) return;
+    
+    let currentTrades = [...trades];
+    let currentHistory = [...history];
+    let totalRefundCurrency = 0;
+    const rate = usdtBrl || 5.62;
+
+    items.forEach(({ id, exitPrice, partialAmount }) => {
+      const trade = currentTrades.find(t => t.id === id);
+      if (!trade) return;
+
+      const isPartial = partialAmount !== undefined && partialAmount > 0 && partialAmount < trade.amount;
+      const soldAmount = isPartial ? partialAmount! : trade.amount;
+      const remainingAmount = trade.amount - soldAmount;
+
+      const purchaseValue = trade.purchasePrice * soldAmount;
+      const exitValue = exitPrice * soldAmount;
+      const pnlValueCurrency = exitValue - purchaseValue;
+      
+      let pnlBrl = pnlValueCurrency;
+      if (trade.currency === 'USDT') {
+        pnlBrl = pnlValueCurrency * rate;
+      }
+
+      const closedRecord = {
+        ...trade,
+        amount: soldAmount,
+        totalInvested: trade.purchasePrice * soldAmount,
+        exitPrice,
+        exitTime: new Date().toISOString(),
+        finalPnlValue: pnlValueCurrency,
+        finalPnlPercent: (pnlValueCurrency / purchaseValue) * 100,
+        pnlBrl
+      };
+
+      currentHistory = [closedRecord, ...currentHistory];
+
+      if (isPartial) {
+        currentTrades = currentTrades.map(t => {
+          if (t.id === id) {
+            return {
+              ...t,
+              amount: remainingAmount,
+              totalInvested: t.purchasePrice * remainingAmount
+            };
+          }
+          return t;
+        });
+      } else {
+        currentTrades = currentTrades.filter(t => t.id !== id);
+      }
+
+      let itemRefund = exitValue;
+      if (trade.currency !== cashBalanceCurrency) {
+        itemRefund = cashBalanceCurrency === 'BRL' ? exitValue * rate : exitValue / rate;
+      }
+      totalRefundCurrency += itemRefund;
+
+      pushLog(`🔥 Venda realizada: ${trade.symbol} a ${exitPrice}. PNL: ${pnlBrl >= 0 ? '+' : ''}R$ ${pnlBrl.toFixed(2)}`);
+    });
+
+    setHistory(currentHistory);
+    setTrades(currentTrades);
+    markLocalUpdate();
+    try {
+      localStorage.setItem('binance_assistant_trades', JSON.stringify(currentTrades));
+      localStorage.setItem('binance_assistant_history', JSON.stringify(currentHistory));
+    } catch(e) {}
+
+    const newCashBalance = cashBalance + totalRefundCurrency;
+    handleUpdateCashBalance(newCashBalance, cashBalanceCurrency);
+    saveToCloud(syncId, currentTrades, currentHistory, newCashBalance, cashBalanceCurrency, displayCurrency, goalPercent, true);
   };
 
   // Simply delete/remove from list
@@ -1086,6 +1186,7 @@ export default function App() {
               usdtBrl={usdtBrl}
               onRemoveTrade={handleRemoveTrade}
               onCloseTrade={handleCloseTrade}
+              onCloseBatchTrades={handleCloseBatchTrades}
               onEditTrade={handleEditTrade}
               goalPercent={goalPercent}
               displayCurrency={displayCurrency}

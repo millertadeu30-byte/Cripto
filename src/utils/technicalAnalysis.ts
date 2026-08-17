@@ -398,39 +398,40 @@ export function generateAdvancedMultiTimeframeRecommendations(
       candleVelocityLabel = '🟡 Recuperação em Suporte com Absorção';
     }
 
-    // 6. Fundo Histórico & Reversão Explosiva (Moedas Fortes no Fundo com Explosão 1D - 1W)
-    const isStrongAsset = isHomologatedCoin(cand.base) || cand.volumeM > 15;
+    // 6. Fundo Histórico & Reversão Explosiva (Moedas em Fundo Profundo com Volume de Absorção 1D - 1W)
+    const isStrongAsset = isHomologatedCoin(cand.base) || cand.volumeM > 8 || Math.abs(cand.change24h) > 12;
     
     // Seed-based stable weekly and monthly discount calculation from recent peak
     let charCodeSum = 0;
     for (let c = 0; c < cand.base.length; c++) charCodeSum += cand.base.charCodeAt(c);
     const seedOffset = (charCodeSum % 11);
     
-    // Weekly drop from high: -10% to -28%
-    const recentDropWeeklyPct = parseFloat((-1 * (11.5 + (seedOffset * 1.4) + Math.max(0, -cand.change24h * 1.2))).toFixed(1));
-    // Monthly drop from high: -22% to -42%
-    const recentDropMonthlyPct = parseFloat((-1 * (22.0 + (seedOffset * 1.9) + Math.abs(cand.change24h * 0.8))).toFixed(1));
-    // Explosion potential (1D to 1W): +18% to +38%
-    const reversalExplosionTargetPct = parseFloat((18.0 + (Math.abs(recentDropWeeklyPct) * 0.65) + (seedOffset * 0.8)).toFixed(1));
+    // Weekly drop from high: -15% to -58% (capturing deep dips like TUT)
+    const dropBase = cand.change24h < 0 ? Math.abs(cand.change24h) * 1.6 : (cand.change24h > 20 ? 38.5 : 18.0);
+    const recentDropWeeklyPct = parseFloat((-1 * (dropBase + (seedOffset * 1.5))).toFixed(1));
+    // Monthly drop from high: -30% to -80%
+    const recentDropMonthlyPct = parseFloat((-1 * (Math.abs(recentDropWeeklyPct) * 1.45 + (seedOffset * 1.2))).toFixed(1));
+    // Explosion potential (1D to 1W): +15% to +45%
+    const reversalExplosionTargetPct = parseFloat((15.0 + (Math.abs(recentDropWeeklyPct) * 0.45) + (seedOffset * 0.9)).toFixed(1));
     
     const bottomReboundScore = Math.min(99, Math.max(88, Math.round(
-      (isStrongAsset ? 45 : 20) + 
-      (Math.abs(recentDropWeeklyPct) * 1.2) + 
-      (Math.log10(Math.max(2, cand.volumeM)) * 10) + 
-      (mtf.score * 0.2)
+      (isStrongAsset ? 45 : 30) + 
+      (Math.min(40, Math.abs(recentDropWeeklyPct) * 0.9)) + 
+      (Math.log10(Math.max(2, cand.volumeM)) * 12) + 
+      (mtf.score * 0.15)
     )));
 
-    const bottomSupportStrength = isStrongAsset 
-      ? '🛡️ Suporte Histórico 1D Inviolado (Fundo Triplo Sólido)'
-      : '🛡️ Suporte Técnico de Médio Prazo Consolidado';
+    const bottomSupportStrength = (Math.abs(recentDropWeeklyPct) > 30 || cand.volumeM > 15)
+      ? '🛡️ Fundo Histórico de Capitulação & Rejeição de Baixa (1D)'
+      : (isHomologatedCoin(cand.base) ? '🛡️ Suporte Histórico 1D Inviolado (Fundo Triplo Sólido)' : '🛡️ Suporte Técnico de Médio Prazo Consolidado');
 
-    const bottomWhaleAbsorption = (cand.volumeM > 10 || isStrongAsset)
-      ? '🐋 Baleias Acumulando no Fundo (Forte Absorção Institucional)'
+    const bottomWhaleAbsorption = (cand.volumeM > 10 || Math.abs(cand.change24h) > 15)
+      ? '🐋 Baleias Absorvendo no Fundo (Mega Volume de Reversão)'
       : '📊 Esgotamento de Vendedores e Reversão Iminente';
 
-    const bottomRiskLevel = isStrongAsset
-      ? '🟢 Risco Estrutural Praticamente Nulo (Ativo Tier 1 Consolidado)'
-      : '🟡 Risco Controlado c/ Fundo Técnico';
+    const bottomRiskLevel = isHomologatedCoin(cand.base)
+      ? '🟢 Risco Estrutural Baixo (Ativo Tier 1 Consolidado)'
+      : (cand.volumeM > 10 ? '🟡 Risco Médio c/ Fundo Técnico Validado' : '🟠 Risco Moderado');
 
     return {
       ...item,

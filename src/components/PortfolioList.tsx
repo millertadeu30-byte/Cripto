@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { DollarSign, Trash2, ArrowUpRight, TrendingDown, TrendingUp, HelpCircle, AlertCircle, Info, ChevronRight, X, Pencil, ChevronDown, ChevronUp, Clock, Copy, Shield, ShieldCheck } from 'lucide-react';
+import { DollarSign, Trash2, ArrowUpRight, TrendingDown, TrendingUp, HelpCircle, AlertCircle, Info, ChevronRight, X, Pencil, ChevronDown, ChevronUp, Clock, Copy, Shield, ShieldCheck, CheckSquare, Square } from 'lucide-react';
 import { Trade } from '../types';
 import { analyze5MinCandle } from '../utils/candleUtils';
 
@@ -8,7 +8,8 @@ interface PortfolioListProps {
   marketPrices: { [key: string]: number };
   usdtBrl: number;
   onRemoveTrade: (id: string) => void;
-  onCloseTrade: (id: string, exitPrice: number) => void;
+  onCloseTrade: (id: string, exitPrice: number, partialAmount?: number) => void;
+  onCloseBatchTrades?: (tradesToClose: { id: string; exitPrice: number; partialAmount?: number }[]) => void;
   onEditTrade: (updatedTrade: Trade) => void;
   goalPercent: number;
   displayCurrency: 'BRL' | 'USDT' | 'BTC';
@@ -20,6 +21,7 @@ export default function PortfolioList({
   usdtBrl,
   onRemoveTrade,
   onCloseTrade,
+  onCloseBatchTrades,
   onEditTrade,
   goalPercent,
   displayCurrency
@@ -27,6 +29,17 @@ export default function PortfolioList({
   // 5-Minute Candle analysis timer
   const [candleInfo, setCandleInfo] = useState(() => analyze5MinCandle());
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  // Multi-Selection State for selling specific coins
+  const [selectedTradeIds, setSelectedTradeIds] = useState<Set<string>>(new Set());
+  const [isBatchSellModalOpen, setIsBatchSellModalOpen] = useState<boolean>(false);
+  const [batchExitPrices, setBatchExitPrices] = useState<{ [id: string]: string }>({});
+  const [batchPartialAmounts, setBatchPartialAmounts] = useState<{ [id: string]: string }>({});
+  const [batchPartialPercentages, setBatchPartialPercentages] = useState<{ [id: string]: number }>({});
+
+  // Single Card Selling State (with partial quantity support)
+  const [sellPartialPercentage, setSellPartialPercentage] = useState<number>(100);
+  const [sellPartialAmount, setSellPartialAmount] = useState<string>('');
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -57,6 +70,101 @@ export default function PortfolioList({
   const [closingTradeId, setClosingTradeId] = useState<string | null>(null);
   const [exitPriceInput, setExitPriceInput] = useState<string>('');
   const [formError, setFormError] = useState<string | null>(null);
+
+  // Toggle single coin selection for selling
+  const toggleSelectTrade = (id: string) => {
+    setSelectedTradeIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedTradeIds.size === filteredTrades.length && filteredTrades.length > 0) {
+      setSelectedTradeIds(new Set());
+    } else {
+      setSelectedTradeIds(new Set(filteredTrades.map(t => t.id)));
+    }
+  };
+
+  const handleClearSelection = () => {
+    setSelectedTradeIds(new Set());
+  };
+
+  // Open batch sell modal for the marked coins
+  const handleOpenBatchSellModal = () => {
+    const prices: { [id: string]: string } = {};
+    const amounts: { [id: string]: string } = {};
+    const pcts: { [id: string]: number } = {};
+    
+    trades.filter(t => selectedTradeIds.has(t.id)).forEach(t => {
+      const livePrice = marketPrices[t.symbol] || t.purchasePrice;
+      prices[t.id] = livePrice.toString();
+      amounts[t.id] = t.amount.toString();
+      pcts[t.id] = 100;
+    });
+    
+    setBatchExitPrices(prices);
+    setBatchPartialAmounts(amounts);
+    setBatchPartialPercentages(pcts);
+    setFormError(null);
+    setIsBatchSellModalOpen(true);
+  };
+
+  // Set partial percentage for a coin inside batch sell modal
+  const handleSetBatchCoinPercentage = (trade: Trade, pct: number) => {
+    setBatchPartialPercentages(prev => ({ ...prev, [trade.id]: pct }));
+    const calcQty = (trade.amount * (pct / 100));
+    setBatchPartialAmounts(prev => ({ ...prev, [trade.id]: calcQty.toString() }));
+  };
+
+  // Confirm and execute batch sell for all marked coins
+  const handleConfirmBatchClose = () => {
+    const itemsToClose: { id: string; exitPrice: number; partialAmount?: number }[] = [];
+    const selectedList = trades.filter(t => selectedTradeIds.has(t.id));
+
+    for (const trade of selectedList) {
+      const priceStr = batchExitPrices[trade.id];
+      const exitP = parseFloat(priceStr);
+      if (isNaN(exitP) || exitP <= 0) {
+        setFormError(`Preço de venda inválido para a moeda ${trade.symbol}`);
+        return;
+      }
+      const qtyStr = batchPartialAmounts[trade.id];
+      const qty = parseFloat(qtyStr);
+      if (isNaN(qty) || qty <= 0) {
+        setFormError(`Quantidade inválida para a moeda ${trade.symbol}`);
+        return;
+      }
+      if (qty > trade.amount) {
+        setFormError(`Quantidade de ${trade.symbol} não pode exceder ${trade.amount}`);
+        return;
+      }
+      const isPart = qty < trade.amount;
+      itemsToClose.push({
+        id: trade.id,
+        exitPrice: exitP,
+        partialAmount: isPart ? qty : undefined
+      });
+    }
+
+    if (onCloseBatchTrades) {
+      onCloseBatchTrades(itemsToClose);
+    } else {
+      itemsToClose.forEach(item => {
+        onCloseTrade(item.id, item.exitPrice, item.partialAmount);
+      });
+    }
+
+    setIsBatchSellModalOpen(false);
+    setSelectedTradeIds(new Set());
+    setFormError(null);
+  };
 
   // States for editing trade
   const [editingTradeId, setEditingTradeId] = useState<string | null>(null);
@@ -105,6 +213,14 @@ export default function PortfolioList({
     setFormError(null);
     const livePrice = marketPrices[trade.symbol] || trade.purchasePrice;
     setExitPriceInput(livePrice.toString());
+    setSellPartialPercentage(100);
+    setSellPartialAmount(trade.amount.toString());
+  };
+
+  const handleSetSingleSellPercentage = (trade: Trade, pct: number) => {
+    setSellPartialPercentage(pct);
+    const calcQty = (trade.amount * (pct / 100));
+    setSellPartialAmount(calcQty.toString());
   };
 
   const handleConfirmClose = (e: React.FormEvent, trade: Trade) => {
@@ -114,7 +230,25 @@ export default function PortfolioList({
       setFormError('Por favor, informe um preço de venda válido.');
       return;
     }
-    onCloseTrade(trade.id, parsedExit);
+    const parsedQty = parseFloat(sellPartialAmount);
+    if (isNaN(parsedQty) || parsedQty <= 0) {
+      setFormError('Por favor, informe uma quantidade válida para vender.');
+      return;
+    }
+    if (parsedQty > trade.amount) {
+      setFormError(`Quantidade máxima disponível para venda: ${trade.amount}`);
+      return;
+    }
+
+    const isPartial = parsedQty < trade.amount;
+    onCloseTrade(trade.id, parsedExit, isPartial ? parsedQty : undefined);
+    
+    // Also remove from selected set if present
+    setSelectedTradeIds(prev => {
+      const next = new Set(prev);
+      next.delete(trade.id);
+      return next;
+    });
     setClosingTradeId(null);
     setFormError(null);
   };
@@ -384,6 +518,56 @@ export default function PortfolioList({
         </div>
       ) : (
         <div className="space-y-4">
+          
+          {/* Multi-Selection Control Bar: Select Which Coins To Sell */}
+          <div className="bg-[#1e2026]/90 border border-gray-800 rounded-xl p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md">
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={handleSelectAll}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#14151a] hover:bg-[#252830] text-gray-200 border border-gray-700 text-xs font-bold transition-all cursor-pointer select-none"
+              >
+                {selectedTradeIds.size === filteredTrades.length && filteredTrades.length > 0 ? (
+                  <CheckSquare className="w-4 h-4 text-[#0ecb81]" />
+                ) : (
+                  <Square className="w-4 h-4 text-gray-400" />
+                )}
+                <span>{selectedTradeIds.size === filteredTrades.length && filteredTrades.length > 0 ? 'Desmarcar Todas' : 'Marcar Todas'}</span>
+              </button>
+
+              <span className="text-xs text-gray-400 font-mono">
+                {selectedTradeIds.size > 0 ? (
+                  <span className="text-[#0ecb81] font-bold">
+                    ✓ {selectedTradeIds.size} de {trades.length} moeda(s) marcada(s) para venda
+                  </span>
+                ) : (
+                  <span className="text-gray-500">
+                    Clique nas caixas abaixo para escolher quais moedas deseja vender
+                  </span>
+                )}
+              </span>
+            </div>
+
+            {selectedTradeIds.size > 0 && (
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <button
+                  type="button"
+                  onClick={handleClearSelection}
+                  className="px-2.5 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-semibold cursor-pointer transition-colors"
+                >
+                  Limpar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleOpenBatchSellModal}
+                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-[#0ecb81] hover:bg-green-600 text-white text-xs font-bold shadow-lg shadow-emerald-900/30 transition-all cursor-pointer animate-pulse"
+                >
+                  <span>🛍️ Vender as {selectedTradeIds.size} Moeda(s) Marcada(s)</span>
+                </button>
+              </div>
+            )}
+          </div>
+
           {trades.length > 0 && filteredTrades.length === 0 && (
             <div className="text-center py-8 border border-dashed border-gray-800 rounded-xl bg-[#1e2026]/30">
               <AlertCircle className="w-6 h-6 text-gray-500 mx-auto mb-2" />
@@ -455,12 +639,42 @@ export default function PortfolioList({
               aiBadgeColor = 'bg-[#0ecb81]/10 text-[#0ecb81] border border-[#0ecb81]/30';
             }
 
+            const isSelectedForSale = selectedTradeIds.has(trade.id);
+
             return (
               <div
                 id={`portfolio-item-${trade.id}`}
                 key={trade.id}
-                className="bg-[#1e2026] border border-gray-800 hover:border-gray-700 rounded-xl p-4 transition-all"
+                className={`bg-[#1e2026] border rounded-xl p-4 transition-all ${
+                  isSelectedForSale 
+                    ? 'border-[#0ecb81] shadow-lg shadow-emerald-950/40 bg-gradient-to-r from-[#1e2026] to-[#12281e]' 
+                    : 'border-gray-800 hover:border-gray-700'
+                }`}
               >
+                {/* Checkbox Selector on Top of Card */}
+                <div className="flex items-center justify-between pb-3 mb-3 border-b border-gray-800/60">
+                  <button
+                    type="button"
+                    onClick={() => toggleSelectTrade(trade.id)}
+                    className={`flex items-center gap-2 px-2.5 py-1 rounded-lg border text-xs font-bold transition-all cursor-pointer select-none ${
+                      isSelectedForSale
+                        ? 'bg-[#0ecb81]/20 text-[#0ecb81] border-[#0ecb81]'
+                        : 'bg-[#14151a] text-gray-400 border-gray-700 hover:text-white hover:border-gray-500'
+                    }`}
+                  >
+                    {isSelectedForSale ? (
+                      <CheckSquare className="w-4 h-4 text-[#0ecb81]" />
+                    ) : (
+                      <Square className="w-4 h-4 text-gray-400" />
+                    )}
+                    <span>{isSelectedForSale ? '✓ Marcada para Venda' : 'Marcar para Vender'}</span>
+                  </button>
+
+                  <span className="text-[10px] text-gray-500 font-mono">
+                    ID: {trade.id.slice(0, 8)}
+                  </span>
+                </div>
+
                 <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
                   
                   {/* Coin Basics & Prices */}
@@ -1120,20 +1334,31 @@ export default function PortfolioList({
                 {closingTradeId === trade.id && (
                   <form 
                     onSubmit={(e) => handleConfirmClose(e, trade)}
-                    className="mt-3 p-3 bg-gray-950/40 rounded-lg border border-gray-800/80 space-y-3"
+                    className="mt-3 p-4 bg-gray-950/80 rounded-xl border border-[#0ecb81]/40 space-y-3.5 shadow-xl font-sans"
                   >
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs text-gray-400 font-semibold">Registrar venda da moeda</span>
+                    <div className="flex justify-between items-center border-b border-gray-800 pb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-[#0ecb81] font-bold">Vender Moeda Individual ({trade.symbol})</span>
+                        <span className="bg-[#0ecb81]/15 text-[#0ecb81] text-[10px] px-2 py-0.5 rounded font-bold">Venda Isolada</span>
+                      </div>
                       <button 
                         type="button" 
                         onClick={() => {
                           setClosingTradeId(null);
                           setFormError(null);
                         }}
-                        className="text-gray-500 hover:text-white"
+                        className="text-gray-400 hover:text-white transition-colors"
                       >
-                        <X className="w-3.5 h-3.5" />
+                        <X className="w-4 h-4" />
                       </button>
+                    </div>
+
+                    {/* Important Reassurance Notice */}
+                    <div className="bg-[#0ecb81]/10 border border-[#0ecb81]/30 rounded-lg p-2.5 text-xs text-[#0ecb81] font-medium flex items-start gap-2">
+                      <span className="text-sm shrink-0">🛡️</span>
+                      <p className="leading-snug">
+                        Você está vendendo <strong>apenas a moeda {trade.symbol}</strong>. As outras {Math.max(0, trades.length - 1)} moeda(s) da sua carteira continuarão ativas e intactas.
+                      </p>
                     </div>
 
                     {formError && (
@@ -1142,23 +1367,123 @@ export default function PortfolioList({
                       </div>
                     )}
 
-                    <div className="flex gap-3 items-end">
-                      <div className="flex-1">
-                        <label className="block text-[10px] text-gray-500 mb-1">PREÇO DE VENDA NA BINANCE ({trade.currency})</label>
+                    {/* Quantity Selection for Partial Sale */}
+                    <div className="space-y-2 bg-[#181a20] p-3 rounded-lg border border-gray-800">
+                      <div className="flex justify-between items-center text-xs">
+                        <label className="text-[11px] text-gray-400 font-semibold">
+                          QUANTIDADE A VENDER (Total em carteira: {trade.amount.toLocaleString('pt-BR', { maximumFractionDigits: 6 })})
+                        </label>
+                        <span className="text-[11px] text-[#f0b90b] font-mono font-bold">
+                          {sellPartialPercentage}% selecionado
+                        </span>
+                      </div>
+
+                      {/* Percentage Shortcuts */}
+                      <div className="grid grid-cols-4 gap-2">
+                        {[
+                          { label: '25%', pct: 25 },
+                          { label: '50% (Metade)', pct: 50 },
+                          { label: '75%', pct: 75 },
+                          { label: '100% (Tudo)', pct: 100 },
+                        ].map(btn => (
+                          <button
+                            key={btn.pct}
+                            type="button"
+                            onClick={() => handleSetSingleSellPercentage(trade, btn.pct)}
+                            className={`py-1 rounded text-[11px] font-bold transition-all cursor-pointer ${
+                              sellPartialPercentage === btn.pct
+                                ? 'bg-[#0ecb81] text-black shadow-md'
+                                : 'bg-[#2b2f36] hover:bg-gray-700 text-gray-300'
+                            }`}
+                          >
+                            {btn.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Custom Amount Input */}
+                      <div className="pt-1">
+                        <input
+                          id="sell-partial-amount-input"
+                          type="number"
+                          step="any"
+                          value={sellPartialAmount}
+                          onChange={(e) => {
+                            setSellPartialAmount(e.target.value);
+                            const val = parseFloat(e.target.value);
+                            if (!isNaN(val) && trade.amount > 0) {
+                              setSellPartialPercentage(Math.min(100, Math.round((val / trade.amount) * 100)));
+                            }
+                          }}
+                          placeholder={`Ex: ${trade.amount}`}
+                          className="bg-[#2b2f36] text-white border border-gray-700 rounded px-2.5 py-1.5 text-xs focus:outline-none focus:border-[#0ecb81] w-full font-mono font-semibold"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    {/* Exit Price Input and Real-time Estimation */}
+                    <div className="space-y-2">
+                      <div>
+                        <label className="block text-[10px] text-gray-400 font-bold mb-1">
+                          PREÇO DE VENDA NA BINANCE ({trade.currency})
+                        </label>
                         <input
                           id="exit-price-input"
                           type="number"
                           step="any"
                           value={exitPriceInput}
                           onChange={(e) => setExitPriceInput(e.target.value)}
-                          className="bg-[#2b2f36] text-white border border-gray-800 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-[#f0b90b] w-full font-mono"
+                          className="bg-[#2b2f36] text-white border border-gray-700 rounded px-2.5 py-2 text-xs focus:outline-none focus:border-[#0ecb81] w-full font-mono font-bold"
                           required
                         />
                       </div>
+
+                      {/* Dynamic Profit / Return Summary Preview */}
+                      {(() => {
+                        const exitP = parseFloat(exitPriceInput);
+                        const qty = parseFloat(sellPartialAmount);
+                        if (!isNaN(exitP) && exitP > 0 && !isNaN(qty) && qty > 0) {
+                          const totalReturn = exitP * qty;
+                          const costPortion = trade.purchasePrice * qty;
+                          const profit = totalReturn - costPortion;
+                          const profitPct = costPortion > 0 ? (profit / costPortion) * 100 : 0;
+                          return (
+                            <div className="bg-gray-900/60 p-2.5 rounded-lg border border-gray-800 text-xs flex justify-between items-center font-mono">
+                              <div>
+                                <span className="text-gray-500 block text-[10px]">Valor Bruto a Receber:</span>
+                                <span className="text-white font-bold">
+                                  {trade.currency === 'USDT' ? '$' : 'R$'} {totalReturn.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-gray-500 block text-[10px]">Resultado Líquido:</span>
+                                <span className={`font-bold ${profit >= 0 ? 'text-[#0ecb81]' : 'text-[#f6465d]'}`}>
+                                  {profit >= 0 ? '+' : ''}{trade.currency === 'USDT' ? '$' : 'R$'} {profit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({profitPct >= 0 ? '+' : ''}{profitPct.toFixed(2)}%)
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
+                    </div>
+
+                    <div className="flex gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setClosingTradeId(null);
+                          setFormError(null);
+                        }}
+                        className="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs py-2 rounded-lg font-bold transition-all cursor-pointer"
+                      >
+                        Cancelar
+                      </button>
                       <button
                         id="confirm-sell-btn"
                         type="submit"
-                        className="bg-[#0ecb81] hover:bg-green-600 text-white font-bold text-xs px-3 py-2 rounded transition-colors cursor-pointer"
+                        className="flex-1 bg-[#0ecb81] hover:bg-green-600 text-white font-bold text-xs py-2 rounded-lg transition-colors cursor-pointer shadow-md"
                       >
                         Confirmar Venda
                       </button>
@@ -1482,6 +1807,192 @@ export default function PortfolioList({
             >
               Entendido
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Batch Sell Confirmation Modal for Selected Coins */}
+      {isBatchSellModalOpen && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 overflow-y-auto flex items-start sm:items-center justify-center p-2 sm:p-4">
+          <div className="bg-[#181a20] border border-gray-800 rounded-2xl w-full max-w-2xl shadow-2xl p-5 sm:p-6 my-auto font-sans">
+            <div className="flex items-center justify-between border-b border-gray-800 pb-3 mb-4">
+              <div className="flex items-center gap-2">
+                <span className="bg-[#0ecb81]/20 text-[#0ecb81] text-xs px-2.5 py-1 rounded-lg font-bold">
+                  🛍️ Venda em Lote
+                </span>
+                <h4 className="text-base font-bold text-white">
+                  Vender {selectedTradeIds.size} Moeda(s) Selecionada(s)
+                </h4>
+              </div>
+              <button 
+                onClick={() => {
+                  setIsBatchSellModalOpen(false);
+                  setFormError(null);
+                }}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-[#0ecb81]/10 border border-[#0ecb81]/30 rounded-xl p-3 text-xs text-[#0ecb81] mb-4 flex items-start gap-2">
+              <span className="text-base shrink-0">🛡️</span>
+              <p>
+                Você selecionou <strong>{selectedTradeIds.size} moeda(s)</strong> específicas para vender. As outras <strong>{Math.max(0, trades.length - selectedTradeIds.size)} moeda(s)</strong> da sua carteira continuarão ativas e intocadas.
+              </p>
+            </div>
+
+            {formError && (
+              <div className="text-xs text-[#f6465d] bg-red-500/10 border border-red-500/20 rounded-lg p-2.5 font-medium mb-3">
+                ⚠️ {formError}
+              </div>
+            )}
+
+            <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
+              {trades.filter(t => selectedTradeIds.has(t.id)).map(trade => {
+                const liveP = marketPrices[trade.symbol] || trade.purchasePrice;
+                const exitPStr = batchExitPrices[trade.id] || liveP.toString();
+                const exitP = parseFloat(exitPStr) || liveP;
+                const amtStr = batchPartialAmounts[trade.id] || trade.amount.toString();
+                const amt = parseFloat(amtStr) || trade.amount;
+                const pct = batchPartialPercentages[trade.id] || 100;
+
+                const totalVal = exitP * amt;
+                const costVal = trade.purchasePrice * amt;
+                const profit = totalVal - costVal;
+
+                return (
+                  <div key={trade.id} className="bg-[#1e2026] border border-gray-800 rounded-xl p-3.5 space-y-2.5">
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-white text-sm">{trade.symbol}</span>
+                        <span className="text-[11px] text-gray-400">({trade.coinName || 'Cripto'})</span>
+                      </div>
+                      <div className="text-right text-xs">
+                        <span className="text-gray-400">Total em Carteira: </span>
+                        <span className="text-gray-200 font-mono font-bold">{trade.amount.toLocaleString('pt-BR', { maximumFractionDigits: 6 })}</span>
+                      </div>
+                    </div>
+
+                    {/* Quick percentage buttons */}
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {[25, 50, 75, 100].map(p => (
+                        <button
+                          key={p}
+                          type="button"
+                          onClick={() => handleSetBatchCoinPercentage(trade, p)}
+                          className={`py-1 rounded text-[10px] font-bold transition-all cursor-pointer ${
+                            pct === p 
+                              ? 'bg-[#0ecb81] text-black shadow-sm'
+                              : 'bg-[#2b2f36] hover:bg-gray-700 text-gray-300'
+                          }`}
+                        >
+                          {p === 100 ? '100% (Tudo)' : `${p}%`}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <label className="block text-[10px] text-gray-400 font-semibold mb-1">
+                          PREÇO DE VENDA ({trade.currency})
+                        </label>
+                        <input
+                          type="number"
+                          step="any"
+                          value={exitPStr}
+                          onChange={(e) => setBatchExitPrices(prev => ({ ...prev, [trade.id]: e.target.value }))}
+                          className="bg-[#2b2f36] text-white border border-gray-700 rounded px-2.5 py-1.5 text-xs font-mono w-full focus:outline-none focus:border-[#0ecb81]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-gray-400 font-semibold mb-1">
+                          QUANTIDADE A VENDER
+                        </label>
+                        <input
+                          type="number"
+                          step="any"
+                          value={amtStr}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setBatchPartialAmounts(prev => ({ ...prev, [trade.id]: val }));
+                            const num = parseFloat(val);
+                            if (!isNaN(num) && trade.amount > 0) {
+                              setBatchPartialPercentages(prev => ({ ...prev, [trade.id]: Math.min(100, Math.round((num / trade.amount) * 100)) }));
+                            }
+                          }}
+                          className="bg-[#2b2f36] text-white border border-gray-700 rounded px-2.5 py-1.5 text-xs font-mono w-full focus:outline-none focus:border-[#0ecb81]"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-between items-center text-[11px] font-mono bg-gray-950/40 px-2.5 py-1.5 rounded-lg border border-gray-800/80">
+                      <span className="text-gray-400">
+                        Receber: <strong className="text-white">{trade.currency === 'USDT' ? '$' : 'R$'} {totalVal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                      </span>
+                      <span className={`font-bold ${profit >= 0 ? 'text-[#0ecb81]' : 'text-[#f6465d]'}`}>
+                        Resultado: {profit >= 0 ? '+' : ''}{trade.currency === 'USDT' ? '$' : 'R$'} {profit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Total Estimated Summary */}
+            {(() => {
+              const selectedList = trades.filter(t => selectedTradeIds.has(t.id));
+              let totalReturnUsdt = 0;
+              let totalProfitUsdt = 0;
+
+              selectedList.forEach(trade => {
+                const liveP = marketPrices[trade.symbol] || trade.purchasePrice;
+                const exitP = parseFloat(batchExitPrices[trade.id]) || liveP;
+                const amt = parseFloat(batchPartialAmounts[trade.id]) || trade.amount;
+                const rateToUsd = trade.currency === 'USDT' ? 1 : (1 / (usdtBrl || 5.62));
+                const total = exitP * amt * rateToUsd;
+                const cost = trade.purchasePrice * amt * rateToUsd;
+                totalReturnUsdt += total;
+                totalProfitUsdt += (total - cost);
+              });
+
+              return (
+                <div className="mt-4 p-3 bg-gray-900/80 rounded-xl border border-gray-800 text-xs flex flex-col sm:flex-row justify-between items-center gap-2 font-mono">
+                  <div>
+                    <span className="text-gray-400 block text-[10px]">Total Estimado a Receber:</span>
+                    <span className="text-white font-bold text-sm">
+                      $ {totalReturnUsdt.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT (R$ {(totalReturnUsdt * usdtBrl).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                    </span>
+                  </div>
+                  <div className="sm:text-right">
+                    <span className="text-gray-400 block text-[10px]">Lucro Líquido Estimado:</span>
+                    <span className={`font-bold text-sm ${totalProfitUsdt >= 0 ? 'text-[#0ecb81]' : 'text-[#f6465d]'}`}>
+                      {totalProfitUsdt >= 0 ? '+' : ''}$ {totalProfitUsdt.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDT
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div className="flex gap-2.5 mt-5">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsBatchSellModalOpen(false);
+                  setFormError(null);
+                }}
+                className="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs py-2.5 rounded-xl font-bold transition-all cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmBatchClose}
+                className="flex-1 bg-[#0ecb81] hover:bg-green-600 text-white font-bold text-xs py-2.5 rounded-xl transition-all cursor-pointer shadow-lg shadow-emerald-950/50"
+              >
+                ✓ Finalizar Venda das {selectedTradeIds.size} Moedas
+              </button>
+            </div>
           </div>
         </div>
       )}

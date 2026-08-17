@@ -45,6 +45,8 @@ const CATEGORY_TABS: CategoryTabConfig[] = [
 ];
 
 const POPULAR_QUICK_COINS = [
+  { base: 'TUT', label: '💎 TUT (-40% Fundo)', category: 'Fundo & Explosão' },
+  { base: 'EDEN', label: '💎 EDEN (Reversão)', category: 'Fundo & Explosão' },
   { base: 'BTC', label: '🛡️ BTC', category: 'Homologadas' },
   { base: 'ETH', label: '🛡️ ETH', category: 'Homologadas' },
   { base: 'SOL', label: '☀️ SOL', category: 'Homologadas' },
@@ -103,6 +105,7 @@ export default function TopRecommendations({
   const [showFullRadar, setShowFullRadar] = useState<boolean>(false);
   const [isNightBannerExpanded, setIsNightBannerExpanded] = useState<boolean>(false);
   const [isSectionMinimized, setIsSectionMinimized] = useState<boolean>(false);
+  const [showBottomStudyModal, setShowBottomStudyModal] = useState<boolean>(false);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -555,7 +558,7 @@ export default function TopRecommendations({
       {/* Fundo & Explosão Mode Banner */}
       {selectedCategory === 'Fundo & Explosão' && (
         <div className="bg-gradient-to-r from-cyan-950/40 via-blue-950/25 to-[#1e2026] border border-cyan-500/40 rounded-xl p-3 shadow-lg shadow-cyan-950/25 animate-in fade-in duration-200">
-          <div className="flex items-start sm:items-center justify-between gap-2">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
               <div className="p-2 bg-cyan-500/20 rounded-lg text-cyan-300 shrink-0 border border-cyan-500/40">
                 <span className="text-xl">💎</span>
@@ -566,22 +569,31 @@ export default function TopRecommendations({
                     💎 Top 3 Moedas Fortes no Fundo (Explosão Iminente 1D - 1W)
                   </h4>
                   <span className="bg-cyan-500/25 text-cyan-300 text-[9px] px-1.5 py-0.5 rounded font-extrabold border border-cyan-500/50 uppercase">
-                    Máximo Desconto & Zero Risco Estrutural
+                    Reversão de Queda Profunda (Ex: TUT -40%)
                   </span>
                 </div>
                 <p className="text-gray-300 text-[11px] mt-0.5 leading-relaxed">
-                  Algoritmo selecionando as <strong>3 criptomoedas consolidadas com maior retração acumulada na semana e mês</strong>, assentadas em suporte histórico inquebrável com projeção de explosão para cima entre 1 dia e 1 semana.
+                  Algoritmo selecionando as moedas com <strong>maior desconto acumulado (ex: -30% a -40%)</strong> que absorveram volume e estão prontas para repique técnico de +10% no dia seguinte.
                 </p>
               </div>
             </div>
 
-            <button
-              onClick={() => setSelectedCategory('Todas')}
-              className="text-[11px] text-gray-400 hover:text-white px-2 py-1 rounded hover:bg-gray-800 shrink-0 border border-gray-800"
-              title="Desativar Fundo e Ver Todas"
-            >
-              ✕
-            </button>
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+              <button
+                type="button"
+                onClick={() => setShowBottomStudyModal(true)}
+                className="bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 border border-cyan-400/50 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shrink-0"
+              >
+                <span>📖 Estudo Técnico (Como Cercar o Fundo)</span>
+              </button>
+              <button
+                onClick={() => setSelectedCategory('Todas')}
+                className="text-[11px] text-gray-400 hover:text-white px-2 py-1 rounded hover:bg-gray-800 shrink-0 border border-gray-800"
+                title="Desativar Fundo e Ver Todas"
+              >
+                ✕
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1130,6 +1142,95 @@ export default function TopRecommendations({
       </div>
         </div>
       )}
+
+      {/* Bottom Reversal / Pullback Study Guide Modal */}
+      {showBottomStudyModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 overflow-y-auto flex items-start sm:items-center justify-center p-3 sm:p-4">
+          <div className="bg-[#181a20] border border-cyan-500/40 rounded-2xl w-full max-w-2xl shadow-2xl p-5 sm:p-6 my-auto font-sans space-y-4">
+            <div className="flex items-center justify-between border-b border-gray-800 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="bg-cyan-500/20 text-cyan-300 text-xs px-2.5 py-1 rounded-lg font-bold">
+                  💎 Estudo Técnico
+                </span>
+                <h4 className="text-base font-bold text-white">
+                  Como Cercar Moedas de Queda Brusca (-40% ex: TUT) para o Dia Seguinte?
+                </h4>
+              </div>
+              <button 
+                onClick={() => setShowBottomStudyModal(false)}
+                className="text-gray-400 hover:text-white transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3.5 text-xs text-gray-300 leading-relaxed">
+              
+              {/* Point 1 */}
+              <div className="bg-[#1e2026] p-3.5 rounded-xl border border-gray-800 space-y-1">
+                <div className="flex items-center gap-2 text-cyan-300 font-bold">
+                  <span>1.</span>
+                  <span>Absorção de Liquidez no Fundo (Volume Climático)</span>
+                </div>
+                <p className="text-gray-400 text-[11px]">
+                  Quando uma cripto como <strong>TUT</strong> ou <strong>EDEN</strong> desaba 30% a 40% em um único dia, ocorre uma capitulação em massa do varejo. O robô monitora a entrada de <strong>volume incomum</strong> com formação de sombra inferior no candle (rejeição de novas mínimas). Isso sinaliza que grandes players institucionais começaram a comprar todo o livro de ofertas.
+                </p>
+              </div>
+
+              {/* Point 2 */}
+              <div className="bg-[#1e2026] p-3.5 rounded-xl border border-gray-800 space-y-1">
+                <div className="flex items-center gap-2 text-amber-300 font-bold">
+                  <span>2.</span>
+                  <span>RSI Diário e 4H em Sobrevenda Extrema (&lt; 20 - 25)</span>
+                </div>
+                <p className="text-gray-400 text-[11px]">
+                  Nenhum ativo cai em linha reta indefinidamente. Com o RSI diário em sobrevenda severa, a pressão vendedora se esgota e os vendedores a descoberto (Shorts) precisam recomprar para realizar lucro ("Short Squeeze"), impulsionando um repique técnico natural de <strong>+10% a +25%</strong> rumo à média de 9 períodos.
+                </p>
+              </div>
+
+              {/* Point 3 */}
+              <div className="bg-[#1e2026] p-3.5 rounded-xl border border-gray-800 space-y-1">
+                <div className="flex items-center gap-2 text-emerald-300 font-bold">
+                  <span>3.</span>
+                  <span>Gatilho de Abertura das 9:00 AM (Virada de Sessão)</span>
+                </div>
+                <p className="text-gray-400 text-[11px]">
+                  Às 9:00 da manhã (horário de Brasília), ocorre o fechamento e abertura do candle diário com o pico de liquidez global. O gatilho perfeito ocorre quando o primeiro candle de 15 minutos rompe a máxima do candle anterior sem fazer novas mínimas.
+                </p>
+              </div>
+
+              {/* Point 4 */}
+              <div className="bg-[#1e2026] p-3.5 rounded-xl border border-gray-800 space-y-1">
+                <div className="flex items-center gap-2 text-[#f0b90b] font-bold">
+                  <span>4.</span>
+                  <span>Execução com Ordem OCO Protegida</span>
+                </div>
+                <p className="text-gray-400 text-[11px]">
+                  Ao entrar na operação, configure imediatamente a <strong>Ordem OCO na Binance</strong>:
+                  <br />• <strong>Stop Win (Meta):</strong> +10% de lucro.
+                  <br />• <strong>Stop Loss (Proteção):</strong> 3% a 4% abaixo do fundo recente.
+                  <br />Dessa forma, sua relação Risco/Retorno é assimétrica (ganha 10% arriscando apenas 3%).
+                </p>
+              </div>
+
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowBottomStudyModal(false);
+                  setSelectedCategory('Fundo & Explosão');
+                }}
+                className="w-full bg-cyan-500 hover:bg-cyan-400 text-black font-extrabold py-2.5 rounded-xl text-xs transition-colors cursor-pointer"
+              >
+                Ver Moedas Selecionadas na Aba "Fundo & Explosão"
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
