@@ -195,17 +195,17 @@ export default function Header({
     return num.toFixed(2);
   };
 
-  const formatUnitPrice = (price: number, currencySymbol: string) => {
-    if (!price || isNaN(price)) return `${currencySymbol} 0,00`;
+  const formatDollarPrice = (price: number) => {
+    if (!price || isNaN(price)) return '$0.00';
     const abs = Math.abs(price);
-    if (abs >= 100) {
-      return `${currencySymbol} ${price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    if (abs >= 1000) {
+      return `$${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     } else if (abs >= 1) {
-      return `${currencySymbol} ${price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
+      return `$${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
     } else if (abs >= 0.0001) {
-      return `${currencySymbol} ${price.toFixed(6)}`;
+      return `$${price.toFixed(4)}`;
     } else {
-      return `${currencySymbol} ${price.toFixed(8)}`;
+      return `$${price.toFixed(6)}`;
     }
   };
 
@@ -547,6 +547,13 @@ export default function Header({
                       const nativeInvested = trade.totalInvested || (trade.purchasePrice * trade.amount);
                       const nativeCurrent = (marketPrices[trade.symbol] || trade.currentPrice) * trade.amount;
 
+                      // USD Unit Prices (4 decimal places for Binance orders/OCO table)
+                      const purchasePriceUsd = trade.purchasePriceInUsdt || (trade.currency === 'USDT' ? trade.purchasePrice : (usdtBrl > 0 ? trade.purchasePrice / usdtBrl : trade.purchasePrice));
+                      const baseCoinSymbol = trade.symbol.replace(/USDT$/, '').replace(/BRL$/, '');
+                      const usdPairSymbol = `${baseCoinSymbol}USDT`;
+                      const livePriceUsd = marketPrices[usdPairSymbol] || (trade.currency === 'USDT' ? rawLivePrice : (usdtBrl > 0 ? rawLivePrice / usdtBrl : rawLivePrice));
+                      const isPriceUpUsd = livePriceUsd >= purchasePriceUsd;
+
                       return (
                         <div 
                           key={trade.id} 
@@ -570,18 +577,18 @@ export default function Header({
                             </div>
                           </div>
 
-                          {/* Preço Unitário Pago vs Preço Atual (Discreto e Comparativo) */}
-                          <div className="flex flex-col items-center justify-center font-mono text-[9.5px] bg-[#14151a]/80 px-2 py-1 rounded-lg border border-gray-800/70 shrink-0">
+                          {/* Preço Unitário Pago vs Preço Atual em DÓLAR ($ - 4 casas decimais para facilidade de ordens/OCO) */}
+                          <div className="flex flex-col items-center justify-center font-mono text-[9.5px] bg-[#14151a]/90 px-2 py-1 rounded-lg border border-gray-800/80 shrink-0">
                             <div className="flex items-center gap-1 text-gray-400">
-                              <span className="text-gray-500 text-[9px]">Pago:</span>
+                              <span className="text-gray-500 text-[9px]">Pago ($):</span>
                               <span className="text-gray-200 font-bold">
-                                {formatUnitPrice(trade.purchasePrice, displaySymbol)}
+                                {formatDollarPrice(purchasePriceUsd)}
                               </span>
                             </div>
                             <div className="flex items-center gap-1">
-                              <span className="text-gray-500 text-[9px]">Atual:</span>
-                              <span className={`font-bold ${rawLivePrice >= trade.purchasePrice ? 'text-[#0ecb81]' : 'text-[#f6465d]'}`}>
-                                {formatUnitPrice(rawLivePrice, displaySymbol)}
+                              <span className="text-gray-500 text-[9px]">Atual ($):</span>
+                              <span className={`font-bold ${isPriceUpUsd ? 'text-[#0ecb81]' : 'text-[#f6465d]'}`}>
+                                {formatDollarPrice(livePriceUsd)}
                               </span>
                             </div>
                           </div>
