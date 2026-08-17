@@ -195,6 +195,20 @@ export default function Header({
     return num.toFixed(2);
   };
 
+  const formatUnitPrice = (price: number, currencySymbol: string) => {
+    if (!price || isNaN(price)) return `${currencySymbol} 0,00`;
+    const abs = Math.abs(price);
+    if (abs >= 100) {
+      return `${currencySymbol} ${price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    } else if (abs >= 1) {
+      return `${currencySymbol} ${price.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
+    } else if (abs >= 0.0001) {
+      return `${currencySymbol} ${price.toFixed(6)}`;
+    } else {
+      return `${currencySymbol} ${price.toFixed(8)}`;
+    }
+  };
+
   const handleCopyText = (textToCopy: string, keyName: string) => {
     if (!textToCopy) return;
     navigator.clipboard.writeText(textToCopy);
@@ -536,12 +550,12 @@ export default function Header({
                       return (
                         <div 
                           key={trade.id} 
-                          className="bg-[#1e2026] border border-gray-800/80 hover:border-gray-700/80 rounded-xl p-2.5 flex items-center justify-between text-xs transition-all"
+                          className="bg-[#1e2026] border border-gray-800/80 hover:border-gray-700/80 rounded-xl p-2.5 flex items-center justify-between text-xs transition-all gap-2"
                         >
-                          <div className="space-y-0.5">
+                          <div className="space-y-0.5 shrink-0">
                             <div className="flex items-center gap-1.5">
                               <span className="font-extrabold text-white font-sans">{trade.symbol}</span>
-                              <span className="text-[10px] text-gray-500 truncate max-w-[80px]">{trade.coinName}</span>
+                              <span className="text-[10px] text-gray-500 truncate max-w-[70px] sm:max-w-[90px]">{trade.coinName}</span>
                             </div>
                             <div className="text-[10px] text-gray-400 font-mono">
                               <span>Investido: </span>
@@ -556,7 +570,23 @@ export default function Header({
                             </div>
                           </div>
 
-                          <div className="text-right space-y-0.5 font-mono">
+                          {/* Preço Unitário Pago vs Preço Atual (Discreto e Comparativo) */}
+                          <div className="flex flex-col items-center justify-center font-mono text-[9.5px] bg-[#14151a]/80 px-2 py-1 rounded-lg border border-gray-800/70 shrink-0">
+                            <div className="flex items-center gap-1 text-gray-400">
+                              <span className="text-gray-500 text-[9px]">Pago:</span>
+                              <span className="text-gray-200 font-bold">
+                                {formatUnitPrice(trade.purchasePrice, displaySymbol)}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span className="text-gray-500 text-[9px]">Atual:</span>
+                              <span className={`font-bold ${rawLivePrice >= trade.purchasePrice ? 'text-[#0ecb81]' : 'text-[#f6465d]'}`}>
+                                {formatUnitPrice(rawLivePrice, displaySymbol)}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="text-right space-y-0.5 font-mono shrink-0">
                             <div className="text-white font-bold text-[11px]">
                               {displaySymbol} {nativeCurrent.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               {trade.currency === 'USDT' && (
