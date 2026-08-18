@@ -1031,8 +1031,21 @@ export default function App() {
   const handleDeleteHistoryItem = (indexToDelete: number) => {
     const record = history[indexToDelete];
     if (!record) return;
-    setHistory(prev => prev.filter((_, i) => i !== indexToDelete));
+    const newHistory = history.filter((_, i) => i !== indexToDelete);
+    setHistory(newHistory);
+    try {
+      localStorage.setItem('binance_assistant_history', JSON.stringify(newHistory));
+    } catch(e) {}
     pushLog(`🗑️ Operação de ${record.symbol} excluída do histórico de vendas.`);
+  };
+
+  // Clear all history
+  const handleClearHistory = () => {
+    setHistory([]);
+    try {
+      localStorage.setItem('binance_assistant_history', JSON.stringify([]));
+    } catch(e) {}
+    pushLog(`🗑️ Todo o histórico de operações foi limpo.`);
   };
 
   // Handle click on recommendation buy button
@@ -1300,6 +1313,10 @@ export default function App() {
               isAnalyzing={isAnalyzing}
               activityLogs={activityLogs}
               pnlPerformance={pnlPerformance}
+              history={history}
+              onDeleteHistoryItem={handleDeleteHistoryItem}
+              onClearHistory={handleClearHistory}
+              usdtBrl={usdtBrl}
             />
 
           </div>

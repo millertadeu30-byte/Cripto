@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Cpu, Bell, Volume2, VolumeX, ShieldAlert, ArrowUpRight, Zap, Play, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Cpu, Bell, Volume2, VolumeX, ShieldAlert, ArrowUpRight, Zap, Play, CheckCircle, ChevronDown, ChevronUp, History, Eye, BarChart3, AlertOctagon } from 'lucide-react';
+import TradeHistoryModal, { HistoryItem } from './TradeHistoryModal';
 
 interface AIAdvisorProps {
   countdown: number; // seconds left
@@ -10,16 +11,26 @@ interface AIAdvisorProps {
     totalLosses: number;
     profitEarnedBrl: number;
   };
+  history?: HistoryItem[];
+  onDeleteHistoryItem?: (index: number) => void;
+  onClearHistory?: () => void;
+  usdtBrl?: number;
 }
 
 export default function AIAdvisor({
   countdown,
   isAnalyzing,
   activityLogs,
-  pnlPerformance
+  pnlPerformance,
+  history = [],
+  onDeleteHistoryItem,
+  onClearHistory,
+  usdtBrl = 5.62
 }: AIAdvisorProps) {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [isSectionMinimized, setIsSectionMinimized] = useState(false);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [historyFilter, setHistoryFilter] = useState<'all' | 'wins' | 'losses'>('all');
   const previousCountdown = useRef(countdown);
 
   // Format countdown seconds to MM:SS
@@ -27,6 +38,12 @@ export default function AIAdvisor({
     const m = Math.floor(seconds / 60).toString().padStart(2, '0');
     const s = (seconds % 60).toString().padStart(2, '0');
     return `${m}:${s}`;
+  };
+
+  // Open history modal with specific preselected filter
+  const handleOpenHistory = (filter: 'all' | 'wins' | 'losses' = 'all') => {
+    setHistoryFilter(filter);
+    setIsHistoryModalOpen(true);
   };
 
   // Synthesize a beautiful double alert beep using Web Audio API when sound is enabled
@@ -204,27 +221,82 @@ export default function AIAdvisor({
             </div>
           </div>
 
-          {/* Block 2: Profit Realized History Summary */}
-          <div className="space-y-3 bg-[#1e2026]/40 p-4 rounded-xl border border-gray-800/80">
-            <div className="flex justify-between items-center text-xs text-gray-400">
-              <span>HISTÓRICO DE ACERTOS DO APP</span>
-              <span className="text-green-400 font-bold">100% Transparente</span>
+          {/* Block 2: Profit Realized History Summary (Clickable Cards) */}
+          <div className="space-y-3 bg-[#1e2026]/70 p-4 rounded-xl border border-gray-800/80 hover:border-[#f0b90b]/40 transition-all shadow-sm">
+            <div className="flex justify-between items-center text-xs">
+              <div 
+                onClick={() => handleOpenHistory('all')}
+                className="flex items-center gap-1.5 text-gray-300 font-bold hover:text-[#f0b90b] cursor-pointer transition-colors"
+                title="Clique para ver o relatório completo de operações"
+              >
+                <History className="w-3.5 h-3.5 text-[#f0b90b]" />
+                <span>HISTÓRICO DE ACERTOS DO APP</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleOpenHistory('all')}
+                className="text-[11px] text-[#0ecb81] hover:text-emerald-300 font-bold flex items-center gap-1 cursor-pointer bg-emerald-500/10 hover:bg-emerald-500/20 px-2 py-0.5 rounded border border-emerald-500/30 transition-all"
+              >
+                <Eye className="w-3 h-3" />
+                <span>100% Transparente (Ver)</span>
+              </button>
             </div>
+
             <div className="grid grid-cols-3 gap-2 text-center">
-              <div className="bg-gray-900/40 p-2 rounded border border-gray-800/50">
-                <span className="text-[10px] text-gray-500 block">VITORIAS</span>
-                <span id="wins-count" className="text-sm font-bold text-[#0ecb81]">{pnlPerformance.totalWins} Trades</span>
-              </div>
-              <div className="bg-gray-900/40 p-2 rounded border border-gray-800/50">
-                <span className="text-[10px] text-gray-500 block">DERROTAS</span>
-                <span id="losses-count" className="text-sm font-bold text-gray-400">{pnlPerformance.totalLosses} Trades</span>
-              </div>
-              <div className="bg-gray-900/40 p-2 rounded border border-gray-800/50 col-span-1">
-                <span className="text-[10px] text-gray-500 block">LUCRO REALIZADO</span>
-                <span id="profit-earned" className="text-xs font-black text-[#0ecb81] font-mono">
-                  R$ {pnlPerformance.profitEarnedBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {/* Wins Card */}
+              <button
+                type="button"
+                id="wins-history-btn"
+                onClick={() => handleOpenHistory('wins')}
+                className="bg-gray-900/60 hover:bg-emerald-950/40 p-2.5 rounded-xl border border-gray-800/80 hover:border-emerald-500/60 transition-all text-center cursor-pointer group active:scale-95 flex flex-col justify-between"
+                title="Clique para ver todas as Vitórias (Lucros)"
+              >
+                <div className="flex items-center justify-center gap-1">
+                  <span className="text-[10px] text-gray-400 group-hover:text-emerald-400 font-bold block transition-colors">VITÓRIAS</span>
+                </div>
+                <span id="wins-count" className="text-sm sm:text-base font-extrabold text-[#0ecb81] block mt-0.5">
+                  {pnlPerformance.totalWins} Trades
                 </span>
-              </div>
+                <span className="text-[9px] text-emerald-400/70 font-semibold block mt-0.5 group-hover:underline">
+                  Ver detalhes ↗
+                </span>
+              </button>
+
+              {/* Losses Card */}
+              <button
+                type="button"
+                id="losses-history-btn"
+                onClick={() => handleOpenHistory('losses')}
+                className="bg-gray-900/60 hover:bg-red-950/40 p-2.5 rounded-xl border border-gray-800/80 hover:border-red-500/60 transition-all text-center cursor-pointer group active:scale-95 flex flex-col justify-between"
+                title="Clique para ver todas as Derrotas (Stops)"
+              >
+                <div className="flex items-center justify-center gap-1">
+                  <span className="text-[10px] text-gray-400 group-hover:text-red-400 font-bold block transition-colors">DERROTAS</span>
+                </div>
+                <span id="losses-count" className="text-sm sm:text-base font-extrabold text-gray-300 group-hover:text-red-400 block mt-0.5">
+                  {pnlPerformance.totalLosses} Trades
+                </span>
+                <span className="text-[9px] text-gray-500 group-hover:text-red-400/80 font-semibold block mt-0.5 group-hover:underline">
+                  Ver detalhes ↗
+                </span>
+              </button>
+
+              {/* Profit Realized Card */}
+              <button
+                type="button"
+                id="profit-history-btn"
+                onClick={() => handleOpenHistory('all')}
+                className="bg-gray-900/60 hover:bg-[#f0b90b]/10 p-2.5 rounded-xl border border-gray-800/80 hover:border-[#f0b90b]/60 transition-all text-center cursor-pointer group active:scale-95 col-span-1 flex flex-col justify-between"
+                title="Clique para ver o histórico financeiro e preços"
+              >
+                <span className="text-[10px] text-gray-400 group-hover:text-[#f0b90b] font-bold block transition-colors">LUCRO REALIZADO</span>
+                <span id="profit-earned" className={`text-xs sm:text-sm font-black font-mono block mt-0.5 truncate ${pnlPerformance.profitEarnedBrl >= 0 ? 'text-[#0ecb81]' : 'text-red-400'}`}>
+                  {pnlPerformance.profitEarnedBrl >= 0 ? '+' : ''}R$ {pnlPerformance.profitEarnedBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+                <span className="text-[9px] text-gray-400 group-hover:text-[#f0b90b] font-semibold block mt-0.5 group-hover:underline">
+                  Auditar ↗
+                </span>
+              </button>
             </div>
           </div>
 
@@ -258,6 +330,18 @@ export default function AIAdvisor({
           </div>
         </>
       )}
+
+      {/* Detailed Trade History Modal */}
+      <TradeHistoryModal
+        isOpen={isHistoryModalOpen}
+        onClose={() => setIsHistoryModalOpen(false)}
+        history={history}
+        pnlPerformance={pnlPerformance}
+        initialFilter={historyFilter}
+        onDeleteHistoryItem={onDeleteHistoryItem}
+        onClearHistory={onClearHistory}
+        usdtBrl={usdtBrl}
+      />
 
     </div>
   );
