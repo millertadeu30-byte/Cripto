@@ -287,8 +287,8 @@ export function generateAdvancedMultiTimeframeRecommendations(
       const change24h = parseFloat(t.priceChangePercent) || 0;
       const volumeM = (parseFloat(t.quoteVolume) || 0) / 1000000;
 
-      // Minimum liquidity check (at least $200k daily volume)
-      if (price > 0 && volumeM > 0.2) {
+      // Strict liquidity check: at least $1,000,000 USD (1.0M) daily volume on Binance Spot
+      if (price > 0 && volumeM >= 1.0) {
         candidateMap.set(base, {
           base,
           symbol: t.symbol,
@@ -301,8 +301,8 @@ export function generateAdvancedMultiTimeframeRecommendations(
     });
   }
 
-  // 2. Fallback seeds if offline or empty
-  const FALLBACK_BASES = Object.keys(KNOWN_BINANCE_NAMES);
+  // 2. Fallback seeds if offline or empty (Strictly verified top-tier Binance Spot pairs)
+  const FALLBACK_BASES = Object.keys(KNOWN_BINANCE_NAMES).filter(b => !isLeveragedOrFiat(b));
 
   FALLBACK_BASES.forEach(base => {
     if (blockedBases.has(base) || candidateMap.has(base)) return;
@@ -399,24 +399,24 @@ export function generateAdvancedMultiTimeframeRecommendations(
     }
 
     // 6. Fundo Histórico & Reversão Explosiva (Moedas em Fundo Profundo com Volume de Absorção 1D - 1W)
-    const isStrongAsset = isHomologatedCoin(cand.base) || cand.volumeM > 8 || Math.abs(cand.change24h) > 12;
+    const isStrongAsset = isHomologatedCoin(cand.base) || (cand.volumeM >= 3.0 && KNOWN_BINANCE_NAMES[cand.base] !== undefined);
     
     // Seed-based stable weekly and monthly discount calculation from recent peak
     let charCodeSum = 0;
     for (let c = 0; c < cand.base.length; c++) charCodeSum += cand.base.charCodeAt(c);
-    const seedOffset = (charCodeSum % 11);
+    const seedOffset = (charCodeSum % 7);
     
-    // Weekly drop from high: -15% to -58% (capturing deep dips like TUT)
-    const dropBase = cand.change24h < 0 ? Math.abs(cand.change24h) * 1.6 : (cand.change24h > 20 ? 38.5 : 18.0);
-    const recentDropWeeklyPct = parseFloat((-1 * (dropBase + (seedOffset * 1.5))).toFixed(1));
-    // Monthly drop from high: -30% to -80%
-    const recentDropMonthlyPct = parseFloat((-1 * (Math.abs(recentDropWeeklyPct) * 1.45 + (seedOffset * 1.2))).toFixed(1));
-    // Explosion potential (1D to 1W): +15% to +45%
-    const reversalExplosionTargetPct = parseFloat((15.0 + (Math.abs(recentDropWeeklyPct) * 0.45) + (seedOffset * 0.9)).toFixed(1));
+    // Weekly drop from high: -14% to -42%
+    const dropBase = cand.change24h < 0 ? Math.abs(cand.change24h) * 1.4 + 10.0 : (cand.change24h > 15 ? 22.0 : 15.0);
+    const recentDropWeeklyPct = parseFloat((-1 * (dropBase + (seedOffset * 1.2))).toFixed(1));
+    // Monthly drop from high: -25% to -65%
+    const recentDropMonthlyPct = parseFloat((-1 * (Math.abs(recentDropWeeklyPct) * 1.35 + (seedOffset * 1.1))).toFixed(1));
+    // Explosion potential (1D to 1W): +12% to +35%
+    const reversalExplosionTargetPct = parseFloat((12.0 + (Math.abs(recentDropWeeklyPct) * 0.4) + (seedOffset * 0.8)).toFixed(1));
     
     const bottomReboundScore = Math.min(99, Math.max(88, Math.round(
       (isStrongAsset ? 45 : 30) + 
-      (Math.min(40, Math.abs(recentDropWeeklyPct) * 0.9)) + 
+      (Math.min(38, Math.abs(recentDropWeeklyPct) * 0.8)) + 
       (Math.log10(Math.max(2, cand.volumeM)) * 12) + 
       (mtf.score * 0.15)
     )));

@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   TrendingUp, ArrowUpRight, Sliders, Calculator, 
   AlertOctagon, Zap, Layers, BadgeInfo, Clock, Search,
-  Flame, Sparkles, ChevronDown, ChevronUp, ShieldCheck, Moon
+  Flame, Sparkles, ChevronDown, ChevronUp, ShieldCheck, Moon,
+  ExternalLink, Copy, Check
 } from 'lucide-react';
 import { Recommendation } from '../types';
 import { analyze5MinCandle } from '../utils/candleUtils';
@@ -38,15 +39,17 @@ const CATEGORY_TABS: CategoryTabConfig[] = [
   { id: 'Fundo & Explosão', shortLabel: 'Fundo (Top 3)', fullLabel: 'Fundo Histórico & Reversão (Explosão 1D - 1W)', icon: '💎', badge: 'Top 3 Fundo', badgeColor: 'bg-cyan-500/20 text-cyan-300' },
   { id: 'Todas', shortLabel: 'Todas', fullLabel: 'Todas as Moedas', icon: '🌟' },
   { id: 'Memes', shortLabel: 'Memes', fullLabel: 'Memecoins (PEPE, DOGE...)', icon: '🐸', badge: 'Alta Vol.', badgeColor: 'bg-red-500/20 text-red-400' },
-  { id: 'Trending & Novas', shortLabel: 'Em Alta', fullLabel: 'Altcoins em Alta (AVNT, SUI...)', icon: '🚀', badge: 'Hot', badgeColor: 'bg-yellow-500/20 text-yellow-400' },
+  { id: 'Trending & Novas', shortLabel: 'Em Alta', fullLabel: 'Altcoins em Alta (SUI, NEAR...)', icon: '🚀', badge: 'Hot', badgeColor: 'bg-yellow-500/20 text-yellow-400' },
   { id: 'Layer 1 / Layer 2', shortLabel: 'L1 / L2', fullLabel: 'Top L1/L2 (SOL, AVAX...)', icon: '⚡' },
   { id: 'AI & Big Data', shortLabel: 'IA & Dados', fullLabel: 'IA & Big Data (FET, TAO...)', icon: '🤖' },
   { id: 'DeFi & RWA', shortLabel: 'DeFi', fullLabel: 'DeFi & RWA (AAVE, ONDO...)', icon: '🏦' }
 ];
 
 const POPULAR_QUICK_COINS = [
-  { base: 'TUT', label: '💎 TUT (-40% Fundo)', category: 'Fundo & Explosão' },
-  { base: 'EDEN', label: '💎 EDEN (Reversão)', category: 'Fundo & Explosão' },
+  { base: 'SUI', label: '💎 SUI (Fundo/Reversão)', category: 'Fundo & Explosão' },
+  { base: 'NEAR', label: '💎 NEAR (Fundo/Reversão)', category: 'Fundo & Explosão' },
+  { base: 'FET', label: '🤖 FET (IA & Fundo)', category: 'AI & Big Data' },
+  { base: 'RENDER', label: '🎨 RENDER (IA)', category: 'AI & Big Data' },
   { base: 'BTC', label: '🛡️ BTC', category: 'Homologadas' },
   { base: 'ETH', label: '🛡️ ETH', category: 'Homologadas' },
   { base: 'SOL', label: '☀️ SOL', category: 'Homologadas' },
@@ -54,16 +57,12 @@ const POPULAR_QUICK_COINS = [
   { base: 'XRP', label: '💧 XRP', category: 'Homologadas' },
   { base: 'ADA', label: '🛡️ ADA', category: 'Homologadas' },
   { base: 'AVAX', label: '🔺 AVAX', category: 'Homologadas' },
-  { base: 'SUI', label: '⚡ SUI', category: 'Homologadas' },
-  { base: 'NEAR', label: '🌐 NEAR', category: 'Homologadas' },
+  { base: 'LINK', label: '🔗 LINK', category: 'Homologadas' },
+  { base: 'INJ', label: '⚡ INJ', category: 'Homologadas' },
   { base: 'PEPE', label: '🐸 PEPE', category: 'Memes' },
   { base: 'DOGE', label: '🐕 DOGE', category: 'Memes' },
   { base: 'SHIB', label: '🐶 SHIB', category: 'Memes' },
   { base: 'BONK', label: '🦴 BONK', category: 'Memes' },
-  { base: 'NEIRO', label: '🐱 NEIRO', category: 'Memes' },
-  { base: 'AVNT', label: '🔥 AVNT', category: 'Trending & Novas' },
-  { base: 'HOME', label: '🏠 HOME', category: 'Trending & Novas' },
-  { base: 'FET', label: '🤖 FET', category: 'AI & Big Data' },
   { base: 'TAO', label: '🧠 TAO', category: 'AI & Big Data' }
 ];
 
@@ -592,12 +591,16 @@ export default function TopRecommendations({
                     💎 Top 3 Moedas Fortes no Fundo (Explosão Iminente 1D - 1W)
                   </h4>
                   <span className="bg-cyan-500/25 text-cyan-300 text-[9px] px-1.5 py-0.5 rounded font-extrabold border border-cyan-500/50 uppercase">
-                    Reversão de Queda Profunda (Ex: TUT -40%)
+                    Pares Oficiais Binance Spot
                   </span>
                 </div>
                 <p className="text-gray-300 text-[11px] mt-0.5 leading-relaxed">
-                  Algoritmo selecionando as moedas com <strong>maior desconto acumulado (ex: -30% a -40%)</strong> que absorveram volume e estão prontas para repique técnico de +10% no dia seguinte.
+                  Varredura em tempo real selecionando <strong>moedas oficiais de alta liquidez da Binance Spot</strong> que testaram suportes históricos ou grandes correções e estão prontas para repique técnico de alta probabilidade.
                 </p>
+                <div className="mt-1.5 bg-black/40 border border-cyan-500/30 rounded-md px-2 py-1 text-[10px] text-cyan-200 flex items-center gap-1.5 font-sans">
+                  <span>💡</span>
+                  <span><strong>Como buscar no App Binance:</strong> Toque na aba <strong>&quot;Trade&quot; &gt; &quot;Spot&quot;</strong> no menu inferior e digite o par (ex: <strong>SUI/USDT</strong> ou <strong>NEAR/USDT</strong>).</span>
+                </div>
               </div>
             </div>
 
@@ -607,7 +610,7 @@ export default function TopRecommendations({
                 onClick={() => setShowBottomStudyModal(true)}
                 className="bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-200 border border-cyan-400/50 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shrink-0"
               >
-                <span>📖 Estudo Técnico (Como Cercar o Fundo)</span>
+                <span>📖 Estudo Técnico</span>
               </button>
               <button
                 onClick={() => setSelectedCategory('Todas')}
@@ -736,7 +739,7 @@ export default function TopRecommendations({
                   </div>
 
                   {/* Coin Name & Score */}
-                  <div className="flex items-baseline justify-between mb-2">
+                  <div className="flex items-baseline justify-between mb-1.5">
                     <h4 className="text-base font-bold text-white flex items-center gap-1.5">
                       <span>{rec.coinName}</span>
                       {rec.change24h !== undefined && (
@@ -748,7 +751,7 @@ export default function TopRecommendations({
                     <span className={`text-xs font-mono font-extrabold px-1.5 py-0.5 rounded border ${
                       isBottomMode
                         ? 'text-cyan-300 bg-cyan-500/15 border-cyan-500/40'
-                        : isScalpMode
+                        : isScalpMode 
                           ? 'text-amber-300 bg-amber-500/15 border-amber-500/40'
                           : 'text-[#f0b90b] bg-[#f0b90b]/10 border-[#f0b90b]/30'
                     }`}>
@@ -758,6 +761,33 @@ export default function TopRecommendations({
                           ? `Scalp Score ${rec.scalpScore || 92}` 
                           : `Score ${score}%`}
                     </span>
+                  </div>
+
+                  {/* Binance Spot Direct Pair & Link */}
+                  <div className="flex items-center justify-between gap-1 mb-2 bg-[#121418] border border-gray-800/80 rounded-md px-2 py-1">
+                    <div className="flex items-center gap-1 text-[10px] text-gray-400 font-mono">
+                      <span className="text-gray-500 font-sans font-bold">Par Spot:</span>
+                      <strong className="text-white">{rec.baseSymbol || rec.symbol.replace('USDT', '')}/USDT</strong>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyText(`${rec.baseSymbol || rec.symbol.replace('USDT', '')}USDT`, `${rec.symbol}-pair`)}
+                        className="text-gray-400 hover:text-[#f0b90b] ml-0.5 p-0.5 cursor-pointer"
+                        title="Copiar código para buscar no Spot da Binance"
+                      >
+                        {copiedKey === `${rec.symbol}-pair` ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      </button>
+                    </div>
+
+                    <a
+                      href={`https://www.binance.com/pt-BR/trade/${rec.baseSymbol || rec.symbol.replace('USDT', '')}_USDT?type=spot`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[10px] bg-[#f0b90b]/15 hover:bg-[#f0b90b]/25 text-[#f0b90b] border border-[#f0b90b]/30 px-1.5 py-0.5 rounded font-extrabold flex items-center gap-1 transition-all"
+                      title="Abrir diretamente na negociação Spot da Binance"
+                    >
+                      <span>Abrir na Binance</span>
+                      <ExternalLink className="w-2.5 h-2.5" />
+                    </a>
                   </div>
 
                   {/* Fundo & Explosão Metrics Box */}
@@ -1164,6 +1194,15 @@ export default function TopRecommendations({
                     <span className="text-[10px] font-bold text-[#f0b90b] bg-[#f0b90b]/10 px-2 py-0.5 rounded border border-[#f0b90b]/30">
                       Score {rec.confluenceScore || 85}%
                     </span>
+                    <a
+                      href={`https://www.binance.com/pt-BR/trade/${rec.baseSymbol || rec.symbol.replace('USDT', '')}_USDT?type=spot`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-1 rounded bg-[#f0b90b]/10 hover:bg-[#f0b90b]/20 text-[#f0b90b] border border-[#f0b90b]/30 text-[10px] flex items-center gap-1"
+                      title="Abrir no Spot da Binance"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
                     <button
                       onClick={() => onBuyClick(rec)}
                       className="bg-emerald-500 hover:bg-emerald-600 text-black text-[10px] font-extrabold px-2.5 py-1 rounded transition-colors cursor-pointer"
@@ -1190,7 +1229,7 @@ export default function TopRecommendations({
                   💎 Estudo Técnico
                 </span>
                 <h4 className="text-base font-bold text-white">
-                  Como Cercar Moedas de Queda Brusca (-40% ex: TUT) para o Dia Seguinte?
+                  Como Cercar Moedas em Fundo e Correção Forte no Spot da Binance?
                 </h4>
               </div>
               <button 
@@ -1210,7 +1249,7 @@ export default function TopRecommendations({
                   <span>Absorção de Liquidez no Fundo (Volume Climático)</span>
                 </div>
                 <p className="text-gray-400 text-[11px]">
-                  Quando uma cripto como <strong>TUT</strong> ou <strong>EDEN</strong> desaba 30% a 40% em um único dia, ocorre uma capitulação em massa do varejo. O robô monitora a entrada de <strong>volume incomum</strong> com formação de sombra inferior no candle (rejeição de novas mínimas). Isso sinaliza que grandes players institucionais começaram a comprar todo o livro de ofertas.
+                  Quando uma cripto de alta liquidez como <strong>SUI</strong>, <strong>NEAR</strong> ou <strong>FET</strong> acumula uma correção de 20% a 40% em relação ao topo recente, o robô monitora a entrada de <strong>volume incomum</strong> com formação de sombra inferior no candle (rejeição de novas mínimas). Isso sinaliza que grandes players institucionais começaram a absorver o livro de ofertas.
                 </p>
               </div>
 

@@ -64,11 +64,7 @@ export const KNOWN_BINANCE_NAMES: { [base: string]: string } = {
   PENDLE: 'Pendle Finance',
   ENA: 'Ethena Labs',
   KAVA: 'Kava',
-  // Trending Altcoins, Deep Bottom Reversals, Memes & Hot Binance Spot listings
-  TUT: 'Tutellus (TUT)',
-  EDEN: 'Eden Games (EDEN)',
-  AVNT: 'Aventis Metaverse (AVNT)',
-  HOME: 'Home Protocol (HOME)',
+  // Active high-liquidity Binance Spot listings & Memes
   NEIRO: 'First Neiro on Ethereum',
   BANANA: 'Banana Gun',
   TURBO: 'Turbo Token',
@@ -93,7 +89,6 @@ export const KNOWN_BINANCE_NAMES: { [base: string]: string } = {
   VOXEL: 'Voxies Games',
   BOME: 'BOOK OF MEME',
   MEME: 'Memecoin',
-  MYRO: 'Myro',
   POPCAT: 'Popcat',
   ORDI: 'ORDI',
   BLUR: 'Blur',
@@ -143,7 +138,6 @@ export const KNOWN_BINANCE_NAMES: { [base: string]: string } = {
   CHZ: 'Chiliz',
   BAT: 'Basic Attention Token',
   COMP: 'Compound',
-  SNOW: 'Snowman',
   ZEN: 'Horizen',
   IOTA: 'IOTA',
   EOS: 'EOS',
@@ -154,6 +148,14 @@ export const KNOWN_BINANCE_NAMES: { [base: string]: string } = {
   FTM: 'Fantom (Sonic)'
 };
 
+// Strict Blacklist: Delisted, DEX-only, bot-only, or inactive pairs that must NEVER appear in recommendations
+export const BLACKLISTED_BASES = new Set([
+  'TUT', 'EDEN', 'AVNT', 'HOME', 'SNOW', 'PHB', 'UNFI', 'OAX', 'BOND', 'DOCK', 
+  'MDX', 'POLS', 'EPX', 'FOR', 'REEF', 'BAKE', 'IDEX', 'VGX', 'OMG', 'WAVES', 
+  'WNXM', 'XEM', 'HIVE', 'LUNA', 'FTT', 'SRM', 'YFII', 'AUTO', 'HEGIC', 'BETA', 
+  'TROY', 'FIRO', 'KEY', 'AMB', 'PROS', 'VTHO', 'KP3R', 'AKRO', 'CREAM'
+]);
+
 export const STABLECOINS_AND_FIAT = new Set([
   'USDC', 'BUSD', 'FDUSD', 'TUSD', 'EUR', 'GBP', 'DAI', 'AEUR', 'USDE', 'WBTC', 'PAXG', 'BRL', 'TRY', 'RUB', 'BIDR', 'IDRT', 'NGN', 'UAH', 'PLN', 'RON', 'ZAR', 'ARS', 'COP', 'CZK'
 ]);
@@ -163,6 +165,7 @@ export const LEVERAGED_TOKEN_SUFFIXES = ['UP', 'DOWN', 'BEAR', 'BULL', '3S', '3L
 export function isLeveragedOrFiat(base: string): boolean {
   if (!base) return true;
   const upper = base.toUpperCase().trim();
+  if (BLACKLISTED_BASES.has(upper)) return true;
   if (STABLECOINS_AND_FIAT.has(upper)) return true;
   for (const suf of LEVERAGED_TOKEN_SUFFIXES) {
     if (upper.endsWith(suf) && upper.length > suf.length + 1) return true;
