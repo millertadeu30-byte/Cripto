@@ -13,11 +13,18 @@ import BeginnerGuide from './components/BeginnerGuide';
 import AddTradeModal from './components/AddTradeModal';
 import ProfitGoalConfigurator from './components/ProfitGoalConfigurator';
 import FirebaseSync from './components/FirebaseSync';
+import StepAlertBanner from './components/StepAlertBanner';
 import { getDeviceSyncId, saveToCloud, subscribeToCloud } from './lib/firebase';
 import { Trade, Recommendation } from './types';
 import { analyzeCoinCandleScenario } from './utils/candleUtils';
 import { generateAdvancedMultiTimeframeRecommendations } from './utils/technicalAnalysis';
 import { isVerifiedBinanceSpotCoin, VERIFIED_BINANCE_COINS } from './utils/verifiedCoins';
+import { 
+  getNotificationPermission, 
+  requestNotificationPermission, 
+  sendStepAlert, 
+  StepAlertPayload 
+} from './utils/notifications';
 
 // Real-world holdings from user's actual screenshot to amaze them!
 const INITIAL_TRADES: Trade[] = [
@@ -308,6 +315,49 @@ export default function App() {
   const [showHistory, setShowHistory] = useState<boolean>(false);
   const [confirmingDeleteHistoryIndex, setConfirmingDeleteHistoryIndex] = useState<number | null>(null);
 
+  // 9% Multi-Tier Notification & Phone Alert System
+  const STEP_ALERT_PERCENT = 9; // Alertas a cada 9% (+9%, +18%, +27% / -9%, -18%...)
+  const [activeStepAlert, setActiveStepAlert] = useState<StepAlertPayload | null>(null);
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'unsupported'>(getNotificationPermission);
+
+  const handleRequestNotificationPermission = async () => {
+    const granted = await requestNotificationPermission();
+    setNotificationPermission(getNotificationPermission());
+    if (granted) {
+      pushLog(`🔔 Permissão de notificações no celular ATIVADA com sucesso! Disparando teste...`);
+      handleTestAlert();
+    } else {
+      pushLog(`⚠️ Permissão de notificações não foi concedida.`);
+    }
+  };
+
+  const handleTestAlert = () => {
+    const sampleTrade = trades[0] || {
+      symbol: 'PORTALBRL',
+      coinName: 'Portal Gaming',
+      purchasePrice: 0.0104,
+      currentPrice: 0.01134,
+      amount: 13653,
+      currency: 'BRL'
+    };
+
+    const payload: StepAlertPayload = {
+      symbol: sampleTrade.symbol,
+      coinName: sampleTrade.coinName || sampleTrade.symbol,
+      tier: 1,
+      stepPercent: STEP_ALERT_PERCENT,
+      actualPnlPercent: 9.04,
+      currentPrice: sampleTrade.currentPrice,
+      purchasePrice: sampleTrade.purchasePrice,
+      currency: sampleTrade.currency as any,
+      pnlValueFormatted: '+R$ 12,85'
+    };
+
+    sendStepAlert(payload);
+    setActiveStepAlert(payload);
+    pushLog(`🧪 [TESTE DE ALERTA 9%] Notificação de celular e som de +9% disparados com sucesso para ${sampleTrade.symbol}!`);
+  };
+
   // Auto-heal existing trades with mismatched symbols and currencies on startup
   useEffect(() => {
     if (trades.length > 0) {
@@ -582,7 +632,7 @@ export default function App() {
 
       setMarketPrices(prev => ({ ...prev, ...prices }));
 
-      // Update active trades with fresh prices
+      // Update active trades with fresh prices and check 9% step notifications
       setTrades(prevTrades => 
         prevTrades.map(trade => {
           if (trade.isManualPrice) return trade;
@@ -601,11 +651,49 @@ export default function App() {
             ? Math.max(trade.aiStopLossPrice, calculatedStop)
             : calculatedStop;
 
+          // Check 9% multi-tier step alerts (+9%, +18%, +27% / -9%, -18%...)
+          let newNotifiedTier = trade.lastNotifiedTier || 0;
+          if (trade.purchasePrice > 0) {
+            const pnlPct = ((freshPrice - trade.purchasePrice) / trade.purchasePrice) * 100;
+            let currentTier = 0;
+            if (pnlPct >= STEP_ALERT_PERCENT) {
+              currentTier = Math.floor(pnlPct / STEP_ALERT_PERCENT);
+            } else if (pnlPct <= -STEP_ALERT_PERCENT) {
+              currentTier = -Math.floor(Math.abs(pnlPct) / STEP_ALERT_PERCENT);
+            }
+
+            if (currentTier !== 0 && currentTier !== (trade.lastNotifiedTier || 0)) {
+              newNotifiedTier = currentTier;
+              const pnlCurrency = (freshPrice - trade.purchasePrice) * trade.amount;
+              const pnlBrl = trade.currency === 'BRL' ? pnlCurrency : pnlCurrency * (freshUsdtBrl || 5.62);
+              const pnlValueFormatted = `${pnlBrl >= 0 ? '+' : ''}R$ ${pnlBrl.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+              const payload: StepAlertPayload = {
+                symbol: trade.symbol,
+                coinName: trade.coinName || trade.symbol,
+                tier: currentTier,
+                stepPercent: STEP_ALERT_PERCENT,
+                actualPnlPercent: pnlPct,
+                currentPrice: freshPrice,
+                purchasePrice: trade.purchasePrice,
+                currency: trade.currency,
+                pnlValueFormatted
+              };
+
+              sendStepAlert(payload);
+              setActiveStepAlert(payload);
+
+              const sign = currentTier > 0 ? '+' : '';
+              pushLog(`🎯 [ALERTA DE ${sign}${currentTier * STEP_ALERT_PERCENT}%] Moeda ${trade.symbol} atingiu ${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%! (${pnlValueFormatted})`);
+            }
+          }
+
           return {
             ...trade,
             currentPrice: freshPrice,
             maxPriceReached: newMax,
-            aiStopLossPrice: newStopLossPrice
+            aiStopLossPrice: newStopLossPrice,
+            lastNotifiedTier: newNotifiedTier
           };
         })
       );
@@ -1117,6 +1205,16 @@ export default function App() {
       {/* Main Body */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         
+        {/* Notificações e Alertas no Celular a cada 9% (+9%, +18% / -9%, -18%) */}
+        <StepAlertBanner
+          activeAlert={activeStepAlert}
+          onDismiss={() => setActiveStepAlert(null)}
+          permission={notificationPermission}
+          onRequestPermission={handleRequestNotificationPermission}
+          stepPercent={STEP_ALERT_PERCENT}
+          onTestAlert={handleTestAlert}
+        />
+
         {/* Painel de Alertas de Compra/Venda Imediatos */}
         {priorityAlerts.length > 0 && (
           <div id="immediate-alerts-panel" className="bg-[#181a20] border-2 border-[#f6465d]/50 rounded-2xl p-5 shadow-lg space-y-3 animate-pulse-subtle">

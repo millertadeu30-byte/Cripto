@@ -754,11 +754,25 @@ export default function PortfolioList({
                   <div className="sm:text-right flex flex-row sm:flex-col justify-between items-center sm:items-end border-t border-gray-800/50 sm:border-t-0 pt-2 sm:pt-0">
                     <div>
                       <span className="text-xs text-gray-500 block">PNL flutuante</span>
-                      <span 
-                        className={`text-sm font-bold font-mono ${isProfit ? 'text-[#0ecb81]' : 'text-[#f6465d]'}`}
-                      >
-                        {formattedPnl} ({pnlPercent >= 0 ? '+' : ''}{pnlPercent.toFixed(2)}%)
-                      </span>
+                      <div className="flex items-center gap-1.5 justify-end flex-wrap">
+                        <span 
+                          className={`text-sm font-bold font-mono ${isProfit ? 'text-[#0ecb81]' : 'text-[#f6465d]'}`}
+                        >
+                          {formattedPnl} ({pnlPercent >= 0 ? '+' : ''}{pnlPercent.toFixed(2)}%)
+                        </span>
+                        {Math.abs(pnlPercent) >= 9 && (
+                          <span 
+                            className={`text-[10px] px-1.5 py-0.5 rounded font-extrabold font-mono tracking-tight animate-pulse border ${
+                              pnlPercent >= 0 
+                                ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' 
+                                : 'bg-red-500/20 text-red-300 border-red-500/40'
+                            }`}
+                            title={`Alerta de ${pnlPercent >= 0 ? '+' : '-'}${Math.floor(Math.abs(pnlPercent) / 9) * 9}% disparado no celular`}
+                          >
+                            {pnlPercent >= 0 ? `🎯 +${Math.floor(pnlPercent / 9) * 9}%` : `⚠️ -${Math.floor(Math.abs(pnlPercent) / 9) * 9}%`}
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     <div className="mt-1 flex items-center gap-2">

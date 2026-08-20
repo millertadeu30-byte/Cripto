@@ -86,6 +86,7 @@ export interface Trade {
   isManualPrice?: boolean;  // Se true, o preço atual foi fixado manualmente e não será sobrescrito pela API
   retracementPercent?: number; // Porcentagem de retração customizada para stop loss
   maxPriceReached?: number;    // Preço máximo atingido pela moeda desde a compra
+  lastNotifiedTier?: number;   // Último nível de alerta de 9% notificado (ex: 1 para +9%, 2 para +18%, -1 para -9%)
 }
 
 export interface MarketPrice {
