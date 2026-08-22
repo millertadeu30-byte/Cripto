@@ -160,17 +160,22 @@ export function evaluateMultiTimeframeAnalysis(
   // - Volume & Liquidity (15 pts)
   let score = 50;
 
-  // 1. Macro Trend (1D & 4H)
+  // 1. Macro Trend (1D & 4H) & Bottom Reversal Setup
   if (change24h > 1.5 && btcChange24h > -2) {
     score += 25;
   } else if (change24h > 0) {
     score += 15;
+  } else if (rsi1h <= 45) {
+    // Prime oversold bottom discount setup (reversão de fundo com perda anterior)
+    score += 25;
   } else {
     score -= 10;
   }
 
-  // 2. Momentum without overbought penalty (RSI between 38 and 62 is ideal for entry!)
-  if (rsi1h >= 40 && rsi1h <= 60) {
+  // 2. Momentum & RSI Zone
+  if (rsi1h <= 45) {
+    score += 18; // Premium bottom reversal entry zone (Desconto de Fundo)
+  } else if (rsi1h >= 40 && rsi1h <= 60) {
     score += 15; // Perfect entry zone
   } else if (rsi1h > 68) {
     score -= 20; // Overbought danger!

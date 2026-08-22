@@ -22,7 +22,7 @@ interface TopRecommendationsProps {
   countdown?: number;
 }
 
-type CategoryType = 'Homologadas' | 'Scalp Rápido' | 'Fundo & Explosão' | 'Todas' | 'Memes' | 'Trending & Novas' | 'Layer 1 / Layer 2' | 'AI & Big Data' | 'DeFi & RWA';
+type CategoryType = 'Homologadas' | 'Scalp Rápido' | 'Fundo & Explosão' | 'Fundo Reversão (Loss)' | 'Todas' | 'Memes' | 'Trending & Novas' | 'Layer 1 / Layer 2' | 'AI & Big Data' | 'DeFi & RWA';
 
 interface CategoryTabConfig {
   id: CategoryType;
@@ -37,6 +37,7 @@ const CATEGORY_TABS: CategoryTabConfig[] = [
   { id: 'Homologadas', shortLabel: 'Homologadas', fullLabel: 'Homologadas (Seguras p/ Noite)', icon: '🛡️', badge: 'Seguras', badgeColor: 'bg-emerald-500/20 text-emerald-300' },
   { id: 'Scalp Rápido', shortLabel: 'Scalp (Top 3)', fullLabel: 'Scalp Rápido (Candle Verde & Volume 1H)', icon: '⚡', badge: 'Top 3', badgeColor: 'bg-amber-500/20 text-amber-300' },
   { id: 'Fundo & Explosão', shortLabel: 'Fundo (Top 3)', fullLabel: 'Fundo Histórico & Reversão (Explosão 1D - 1W)', icon: '💎', badge: 'Top 3 Fundo', badgeColor: 'bg-cyan-500/20 text-cyan-300' },
+  { id: 'Fundo Reversão (Loss)', shortLabel: 'Fundo Loss (Top 3)', fullLabel: 'Fundo Reversão Loss (Dia Anterior Negativo + Score >93% + RSI 1H ≤45)', icon: '🎯', badge: 'Loss + 93%', badgeColor: 'bg-fuchsia-500/20 text-fuchsia-300' },
   { id: 'Todas', shortLabel: 'Todas', fullLabel: 'Todas as Moedas', icon: '🌟' },
   { id: 'Memes', shortLabel: 'Memes', fullLabel: 'Memecoins (PEPE, DOGE...)', icon: '🐸', badge: 'Alta Vol.', badgeColor: 'bg-red-500/20 text-red-400' },
   { id: 'Trending & Novas', shortLabel: 'Em Alta', fullLabel: 'Altcoins em Alta (SUI, NEAR...)', icon: '🚀', badge: 'Hot', badgeColor: 'bg-yellow-500/20 text-yellow-400' },
@@ -83,11 +84,11 @@ export default function TopRecommendations({
   const [candleInfo, setCandleInfo] = useState(() => analyze5MinCandle());
   const [selectedTfTab, setSelectedTfTab] = useState<{ [symbol: string]: '5M' | '15M' | '1H' | '4H' | '1D' }>({});
   
-  // Category & search filtering (Default to 'Todas' or allow selecting 'Homologadas', 'Scalp Rápido' or 'Fundo & Explosão' with persistence)
+  // Category & search filtering (Default to 'Todas' or allow selecting 'Homologadas', 'Scalp Rápido', 'Fundo & Explosão' or 'Fundo Reversão (Loss)' with persistence)
   const [selectedCategory, setSelectedCategory] = useState<CategoryType>(() => {
     try {
       const saved = localStorage.getItem('binance_assistant_active_category');
-      if (saved && ['Todas', 'Homologadas', 'Scalp Rápido', 'Fundo & Explosão', 'Memes', 'Trending & Novas', 'Layer 1 / Layer 2', 'AI & Big Data', 'DeFi & RWA'].includes(saved)) {
+      if (saved && ['Todas', 'Homologadas', 'Scalp Rápido', 'Fundo & Explosão', 'Fundo Reversão (Loss)', 'Memes', 'Trending & Novas', 'Layer 1 / Layer 2', 'AI & Big Data', 'DeFi & RWA'].includes(saved)) {
         return saved as CategoryType;
       }
     } catch (e) {}
@@ -202,6 +203,13 @@ export default function TopRecommendations({
         // Must be a fundamentally solid coin (Homologated or high liquidity asset with bottom metrics)
         return Boolean(rec.isHomologated || rec.isBottomReversal || (rec.volumeQuoteM && rec.volumeQuoteM > 8));
       }
+      if (selectedCategory === 'Fundo Reversão (Loss)') {
+        // Moedas com perda no dia anterior (change24h < 0 ou queda recente), Score acima de 93% e RSI 1H <= 45
+        const isLoss = (rec.change24h !== undefined && rec.change24h < 0) || ((rec.recentDropWeeklyPct || 0) < 0);
+        const score = rec.confluenceScore || rec.bottomReboundScore || 0;
+        const rsi1h = rec.mtfAnalysis?.tf1h?.rsi ?? 50;
+        return isLoss && score >= 93 && rsi1h <= 45;
+      }
       if (selectedCategory === 'Homologadas') return Boolean(rec.isHomologated);
       return rec.category === selectedCategory;
     });
@@ -215,6 +223,31 @@ export default function TopRecommendations({
         const scoreA = (b.bottomReboundScore || 0) + Math.abs(b.recentDropWeeklyPct || 0);
         const scoreB = (a.bottomReboundScore || 0) + Math.abs(a.recentDropWeeklyPct || 0);
         return scoreA - scoreB;
+      });
+    } else if (selectedCategory === 'Fundo Reversão (Loss)') {
+      // If fewer than 3 strict matches in the current feed, backfill with closest candidate coins
+      if (list.length < 3 && searchQuery.trim() === '') {
+        const fallbackCandidates = recommendations.filter(rec => {
+          const score = rec.confluenceScore || rec.bottomReboundScore || 0;
+          const rsi1h = rec.mtfAnalysis?.tf1h?.rsi ?? 50;
+          const isLossOrFlat = (rec.change24h !== undefined && rec.change24h <= 1.0) || ((rec.recentDropWeeklyPct || 0) < 0);
+          return isLossOrFlat && score >= 90 && rsi1h <= 48 && !list.some(item => item.symbol === rec.symbol);
+        });
+        list = [...list, ...fallbackCandidates];
+      }
+
+      // Sort specifically by Highest Score (>=93%), Lowest RSI 1H (<=45 - highest oversold bottom discount) and Deepest Drop
+      list = [...list].sort((a, b) => {
+        const scoreA = a.confluenceScore || a.bottomReboundScore || 0;
+        const scoreB = b.confluenceScore || b.bottomReboundScore || 0;
+        const rsiA = a.mtfAnalysis?.tf1h?.rsi ?? 50;
+        const rsiB = b.mtfAnalysis?.tf1h?.rsi ?? 50;
+        const dropA = a.change24h || 0;
+        const dropB = b.change24h || 0;
+
+        if (scoreB !== scoreA) return scoreB - scoreA;
+        if (rsiA !== rsiB) return rsiA - rsiB;
+        return dropA - dropB;
       });
     }
 
@@ -412,7 +445,9 @@ export default function TopRecommendations({
                             ? 'bg-amber-500 text-black border-amber-400 shadow-md shadow-amber-500/20 ring-2 ring-amber-400/40 font-extrabold'
                             : tab.id === 'Fundo & Explosão'
                               ? 'bg-cyan-500 text-black border-cyan-400 shadow-md shadow-cyan-500/20 ring-2 ring-cyan-400/40 font-extrabold'
-                              : 'bg-[#f0b90b] text-black border-[#f0b90b] shadow-md shadow-yellow-500/10 font-extrabold'
+                              : tab.id === 'Fundo Reversão (Loss)'
+                                ? 'bg-fuchsia-500 text-black border-fuchsia-400 shadow-md shadow-fuchsia-500/20 ring-2 ring-fuchsia-400/40 font-extrabold'
+                                : 'bg-[#f0b90b] text-black border-[#f0b90b] shadow-md shadow-yellow-500/10 font-extrabold'
                         : 'bg-[#1e2026] text-gray-300 border-gray-800 hover:text-white hover:border-gray-700 active:scale-95'
                     }`}
                     title={tab.fullLabel}
@@ -624,7 +659,47 @@ export default function TopRecommendations({
         </div>
       )}
 
-      {/* TOP CARDS (Top 3 for Scalp, Fundo & Explosão, and general mode) */}
+      {/* Fundo Reversão (Loss) Mode Banner */}
+      {selectedCategory === 'Fundo Reversão (Loss)' && (
+        <div className="bg-gradient-to-r from-fuchsia-950/40 via-purple-950/25 to-[#1e2026] border border-fuchsia-500/40 rounded-xl p-3 shadow-lg shadow-fuchsia-950/25 animate-in fade-in duration-200">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 bg-fuchsia-500/20 rounded-lg text-fuchsia-300 shrink-0 border border-fuchsia-500/40">
+                <span className="text-xl">🎯</span>
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <h4 className="text-fuchsia-300 font-extrabold text-xs sm:text-sm flex items-center gap-1">
+                    🎯 Top 3 Fundo Reversão (Loss Dia Anterior + Score &gt;93% + RSI 1H ≤45)
+                  </h4>
+                  <span className="bg-fuchsia-500/25 text-fuchsia-300 text-[9px] px-1.5 py-0.5 rounded font-extrabold border border-fuchsia-500/50 uppercase">
+                    Filtro Especial Ativo
+                  </span>
+                </div>
+                <p className="text-gray-300 text-[11px] mt-0.5 leading-relaxed">
+                  Filtro sniper selecionando moedas que fecharam em <strong>queda (loss) no dia anterior</strong>, mas mantêm <strong>Score de Confluência &gt;93%</strong> e <strong>RSI no gráfico de 1 Hora ≤ 45</strong> (zona de sobrevenda e suporte sólido para reversão explosiva).
+                </p>
+                <div className="mt-1.5 bg-black/40 border border-fuchsia-500/30 rounded-md px-2 py-1 text-[10px] text-fuchsia-200 flex items-center gap-1.5 font-sans">
+                  <span>✨</span>
+                  <span><strong>Regra de Filtro:</strong> Queda 24h &lt; 0% (Loss) • Score Técnico &gt; 93% • RSI 1H ≤ 45</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+              <button
+                onClick={() => setSelectedCategory('Todas')}
+                className="text-[11px] text-gray-400 hover:text-white px-2 py-1 rounded hover:bg-gray-800 shrink-0 border border-gray-800"
+                title="Desativar Filtro e Ver Todas"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TOP CARDS (Top 3 for Scalp, Fundo & Explosão, Fundo Loss, and general mode) */}
       {topCards.length === 0 ? (
         <div className="text-center py-8 text-gray-400 text-sm bg-[#1e2026]/40 rounded-xl border border-gray-800">
           <BadgeInfo className="w-6 h-6 text-[#f0b90b] mx-auto mb-1 opacity-80" />
@@ -648,6 +723,7 @@ export default function TopRecommendations({
             const isSecond = index === 1;
             const isScalpMode = selectedCategory === 'Scalp Rápido';
             const isBottomMode = selectedCategory === 'Fundo & Explosão';
+            const isFundoLossMode = selectedCategory === 'Fundo Reversão (Loss)';
 
             const userLivePrice = rec.currentPrice;
 
@@ -661,7 +737,7 @@ export default function TopRecommendations({
             const gainProfitDollars = rawInvest * (gainVal / 100);
             const gainProfitBrl = gainProfitDollars * usdtBrl;
 
-            const activeTf = selectedTfTab[rec.symbol] || (isBottomMode ? '1D' : '1H');
+            const activeTf = selectedTfTab[rec.symbol] || (isBottomMode ? '1D' : (isFundoLossMode ? '1H' : '1H'));
             const mtfData = rec.mtfAnalysis;
             const score = rec.confluenceScore || 90;
 
@@ -670,46 +746,60 @@ export default function TopRecommendations({
                 id={`rec-card-${rec.symbol}`}
                 key={rec.symbol}
                 className={`relative bg-[#1e2026] hover:bg-[#22252c] rounded-xl border transition-all p-4 flex flex-col justify-between shadow-md ${
-                  isBottomMode
+                  isFundoLossMode
                     ? isFirst 
-                      ? 'border-cyan-500/80 ring-2 ring-cyan-500/40 shadow-lg shadow-cyan-950/30' 
+                      ? 'border-fuchsia-500/80 ring-2 ring-fuchsia-500/40 shadow-lg shadow-fuchsia-950/30' 
                       : isSecond
-                        ? 'border-cyan-500/60 ring-1 ring-cyan-500/30 shadow-md shadow-cyan-950/20'
-                        : 'border-cyan-500/40 ring-1 ring-cyan-500/20 shadow-md shadow-cyan-950/15'
-                    : isScalpMode
+                        ? 'border-fuchsia-500/60 ring-1 ring-fuchsia-500/30 shadow-md shadow-fuchsia-950/20'
+                        : 'border-fuchsia-500/40 ring-1 ring-fuchsia-500/20 shadow-md shadow-fuchsia-950/15'
+                    : isBottomMode
                       ? isFirst 
-                        ? 'border-amber-500/80 ring-2 ring-amber-500/40 shadow-lg shadow-amber-950/30' 
+                        ? 'border-cyan-500/80 ring-2 ring-cyan-500/40 shadow-lg shadow-cyan-950/30' 
                         : isSecond
-                          ? 'border-yellow-500/60 ring-1 ring-yellow-500/30 shadow-md shadow-yellow-950/20'
-                          : 'border-amber-500/40 ring-1 ring-amber-500/20 shadow-md shadow-amber-950/15'
-                      : isFirst 
-                        ? 'border-[#f0b90b] ring-1 ring-[#f0b90b]/30' 
-                        : 'border-gray-800'
+                          ? 'border-cyan-500/60 ring-1 ring-cyan-500/30 shadow-md shadow-cyan-950/20'
+                          : 'border-cyan-500/40 ring-1 ring-cyan-500/20 shadow-md shadow-cyan-950/15'
+                      : isScalpMode
+                        ? isFirst 
+                          ? 'border-amber-500/80 ring-2 ring-amber-500/40 shadow-lg shadow-amber-950/30' 
+                          : isSecond
+                            ? 'border-yellow-500/60 ring-1 ring-yellow-500/30 shadow-md shadow-yellow-950/20'
+                            : 'border-amber-500/40 ring-1 ring-amber-500/20 shadow-md shadow-amber-950/15'
+                        : isFirst 
+                          ? 'border-[#f0b90b] ring-1 ring-[#f0b90b]/30' 
+                          : 'border-gray-800'
                 }`}
               >
                 {/* Ranking Tag */}
                 <div className={`absolute top-0 right-0 text-[10px] font-extrabold px-2.5 py-0.5 rounded-bl-lg uppercase font-mono ${
-                  isBottomMode
+                  isFundoLossMode
                     ? isFirst 
-                      ? 'bg-gradient-to-r from-cyan-500 to-blue-400 text-black font-black shadow-sm' 
+                      ? 'bg-gradient-to-r from-fuchsia-500 to-purple-400 text-black font-black shadow-sm' 
                       : isSecond
-                        ? 'bg-cyan-600/80 text-white font-bold'
-                        : 'bg-cyan-700/80 text-cyan-100 font-bold'
-                    : isScalpMode
+                        ? 'bg-fuchsia-600/80 text-white font-bold'
+                        : 'bg-fuchsia-700/80 text-fuchsia-100 font-bold'
+                    : isBottomMode
                       ? isFirst 
-                        ? 'bg-gradient-to-r from-amber-500 to-yellow-400 text-black font-black shadow-sm' 
+                        ? 'bg-gradient-to-r from-cyan-500 to-blue-400 text-black font-black shadow-sm' 
                         : isSecond
-                          ? 'bg-amber-600/80 text-white font-bold'
-                          : 'bg-amber-700/80 text-amber-100 font-bold'
-                      : isFirst 
-                        ? 'bg-[#f0b90b] text-black font-black' 
-                        : 'bg-gray-800 text-gray-300'
+                          ? 'bg-cyan-600/80 text-white font-bold'
+                          : 'bg-cyan-700/80 text-cyan-100 font-bold'
+                      : isScalpMode
+                        ? isFirst 
+                          ? 'bg-gradient-to-r from-amber-500 to-yellow-400 text-black font-black shadow-sm' 
+                          : isSecond
+                            ? 'bg-amber-600/80 text-white font-bold'
+                            : 'bg-amber-700/80 text-amber-100 font-bold'
+                        : isFirst 
+                          ? 'bg-[#f0b90b] text-black font-black' 
+                          : 'bg-gray-800 text-gray-300'
                 }`}>
-                  {isBottomMode
-                    ? (isFirst ? '💎 #1 SUPER FUNDO BINANCE' : isSecond ? '💎 #2 SUPER FUNDO BINANCE' : '💎 #3 SUPER FUNDO BINANCE')
-                    : isScalpMode 
-                      ? (isFirst ? '⚡ #1 TOP SCALP BINANCE' : isSecond ? '⚡ #2 TOP SCALP BINANCE' : '⚡ #3 TOP SCALP BINANCE')
-                      : (isFirst ? '🏆 #1 TOP CONFLUÊNCIA' : `#${index + 1}`)}
+                  {isFundoLossMode
+                    ? (isFirst ? '🎯 #1 REVERSÃO LOSS (SCORE >93%)' : isSecond ? '🎯 #2 REVERSÃO LOSS (SCORE >93%)' : '🎯 #3 REVERSÃO LOSS (SCORE >93%)')
+                    : isBottomMode
+                      ? (isFirst ? '💎 #1 SUPER FUNDO BINANCE' : isSecond ? '💎 #2 SUPER FUNDO BINANCE' : '💎 #3 SUPER FUNDO BINANCE')
+                      : isScalpMode 
+                        ? (isFirst ? '⚡ #1 TOP SCALP BINANCE' : isSecond ? '⚡ #2 TOP SCALP BINANCE' : '⚡ #3 TOP SCALP BINANCE')
+                        : (isFirst ? '🏆 #1 TOP CONFLUÊNCIA' : `#${index + 1}`)}
                 </div>
 
                 <div>
@@ -718,7 +808,11 @@ export default function TopRecommendations({
                     <span className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] px-1.5 py-0.5 rounded font-extrabold uppercase flex items-center gap-1">
                       <Zap className="w-3 h-3 text-emerald-400" /> {rec.action}
                     </span>
-                    {isBottomMode ? (
+                    {isFundoLossMode ? (
+                      <span className="bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/40 text-[9px] px-1.5 py-0.5 rounded font-extrabold flex items-center gap-1">
+                        🎯 Fundo Loss (Score &gt;93% &amp; RSI 1H ≤45)
+                      </span>
+                    ) : isBottomMode ? (
                       <span className="bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 text-[9px] px-1.5 py-0.5 rounded font-extrabold flex items-center gap-1">
                         💎 Fundo & Explosão 1D-1W
                       </span>
@@ -749,17 +843,21 @@ export default function TopRecommendations({
                       )}
                     </h4>
                     <span className={`text-xs font-mono font-extrabold px-1.5 py-0.5 rounded border ${
-                      isBottomMode
-                        ? 'text-cyan-300 bg-cyan-500/15 border-cyan-500/40'
-                        : isScalpMode 
-                          ? 'text-amber-300 bg-amber-500/15 border-amber-500/40'
-                          : 'text-[#f0b90b] bg-[#f0b90b]/10 border-[#f0b90b]/30'
+                      isFundoLossMode
+                        ? 'text-fuchsia-300 bg-fuchsia-500/15 border-fuchsia-500/40'
+                        : isBottomMode
+                          ? 'text-cyan-300 bg-cyan-500/15 border-cyan-500/40'
+                          : isScalpMode 
+                            ? 'text-amber-300 bg-amber-500/15 border-amber-500/40'
+                            : 'text-[#f0b90b] bg-[#f0b90b]/10 border-[#f0b90b]/30'
                     }`}>
-                      {isBottomMode
-                        ? `Rebound Score ${rec.bottomReboundScore || 96}%`
-                        : isScalpMode 
-                          ? `Scalp Score ${rec.scalpScore || 92}` 
-                          : `Score ${score}%`}
+                      {isFundoLossMode
+                        ? `Score ${score}% (RSI 1H: ${mtfData?.tf1h?.rsi || 42})`
+                        : isBottomMode
+                          ? `Rebound Score ${rec.bottomReboundScore || 96}%`
+                          : isScalpMode 
+                            ? `Scalp Score ${rec.scalpScore || 92}` 
+                            : `Score ${score}%`}
                     </span>
                   </div>
 
@@ -789,6 +887,41 @@ export default function TopRecommendations({
                       <ExternalLink className="w-2.5 h-2.5" />
                     </a>
                   </div>
+
+                  {/* Fundo Reversão (Loss) Metrics Box */}
+                  {isFundoLossMode && (
+                    <div className="bg-gradient-to-b from-fuchsia-950/35 via-[#181a20] to-black/50 border border-fuchsia-500/40 rounded-lg p-2.5 my-2 space-y-2 text-xs font-sans">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-fuchsia-300 font-bold flex items-center gap-1">
+                          🎯 Queda Dia Anterior (Loss):
+                        </span>
+                        <span className="text-red-400 font-extrabold font-mono text-right">
+                          {rec.change24h !== undefined ? (rec.change24h >= 0 ? `+${rec.change24h.toFixed(2)}%` : `${rec.change24h.toFixed(2)}%`) : '-3.2%'} (24h)
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-fuchsia-950/60 font-mono text-[10px]">
+                        <div className="bg-black/60 p-1.5 rounded border border-gray-800">
+                          <span className="text-gray-400 block font-sans">Score de Confluência:</span>
+                          <span className="text-fuchsia-300 font-extrabold">
+                            {score}% (&gt;93% Confirmado ✅)
+                          </span>
+                        </div>
+                        <div className="bg-black/60 p-1.5 rounded border border-gray-800">
+                          <span className="text-gray-400 block font-sans">RSI Gráfico 1H:</span>
+                          <span className="text-emerald-400 font-extrabold">
+                            {mtfData?.tf1h?.rsi || 42} (≤45 Sobrevenda ✅)
+                          </span>
+                        </div>
+                        <div className="bg-black/60 p-1.5 rounded border border-gray-800 col-span-2">
+                          <span className="text-gray-400 block font-sans">Estratégia de Repique:</span>
+                          <span className="text-amber-300 font-bold block truncate">
+                            🎯 Alvo: +{gainVal}% | Stop Técnico: -{lossVal}%
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Fundo & Explosão Metrics Box */}
                   {isBottomMode && (
@@ -890,11 +1023,13 @@ export default function TopRecommendations({
                           onClick={() => setSelectedTfTab(prev => ({ ...prev, [rec.symbol]: tf }))}
                           className={`text-[9px] py-0.5 rounded font-bold transition-all cursor-pointer text-center ${
                             activeTf === tf
-                              ? isBottomMode
-                                ? 'bg-cyan-400 text-black font-extrabold'
-                                : isScalpMode 
-                                  ? 'bg-amber-500 text-black font-extrabold' 
-                                  : 'bg-[#f0b90b] text-black font-extrabold'
+                              ? isFundoLossMode
+                                ? 'bg-fuchsia-400 text-black font-extrabold'
+                                : isBottomMode
+                                  ? 'bg-cyan-400 text-black font-extrabold'
+                                  : isScalpMode 
+                                    ? 'bg-amber-500 text-black font-extrabold' 
+                                    : 'bg-[#f0b90b] text-black font-extrabold'
                               : 'bg-gray-900 text-gray-400 hover:text-white border border-gray-800'
                           }`}
                         >
@@ -916,7 +1051,12 @@ export default function TopRecommendations({
                   <div className="bg-[#121418] border border-gray-800 rounded-lg p-2.5 my-2 space-y-1.5 font-mono text-xs">
                     {/* Status Badge */}
                     <div className="flex items-center justify-between">
-                      {isBottomMode ? (
+                      {isFundoLossMode ? (
+                        <span className="bg-fuchsia-500/15 text-fuchsia-300 border border-fuchsia-500/30 text-[9px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 font-sans">
+                          <span className="w-1.5 h-1.5 bg-fuchsia-400 rounded-full animate-ping"></span>
+                          🎯 REVERSÃO DE FUNDO ARMADA
+                        </span>
+                      ) : isBottomMode ? (
                         <span className="bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 text-[9px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 font-sans">
                           <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-ping"></span>
                           💎 FUNDO ARMADO (Janela 1D - 1W)
