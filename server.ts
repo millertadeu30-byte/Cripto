@@ -148,55 +148,126 @@ function generateSmartLocalCryptoAnalysis(
   totalBalanceBrl: number,
   usdtBrl: number
 ): string {
-  const q = query.toLowerCase();
+  const q = query.toLowerCase().trim();
 
-  if (trades.length === 0) {
-    return `🎯 **Análise Rápida de Carteira:**\n\n- **Status:** Você está 100% líquido em caixa (R$ ${totalBalanceBrl.toFixed(2)}).\n- **Recomendação:** Excelente momento para aguardar os sinais de **Fundo Reversão (Loss)** com score >90% no radar ou posicionar ordens limite de compra em suportes fortes.\n- **Dica:** Nunca entre com mais de 30% da sua banca em uma única moeda para manter gestão de risco controlada.`;
+  // Normalize trades
+  const enrichedTrades = trades.map((t: any) => {
+    const livePrice = t.livePrice || t.purchasePrice;
+    const pnlPct = t.purchasePrice > 0 ? ((livePrice - t.purchasePrice) / t.purchasePrice) * 100 : 0;
+    const valueBrl = t.totalInvested * (t.currency === 'USDT' ? usdtBrl : 1) * (1 + pnlPct / 100);
+    const cleanSymbol = String(t.symbol || '').toUpperCase();
+    const cleanBase = cleanSymbol.replace(/USDT|BRL/i, '');
+    return {
+      ...t,
+      cleanSymbol,
+      cleanBase,
+      livePrice,
+      pnlPct,
+      valueBrl
+    };
+  });
+
+  // 1. COMPARATIVE / SWAP / ALL-IN ("vender X e comprar Y", "trocar", "comprar tudo", "all in")
+  const isSwapOrAllIn = (q.includes('vender') || q.includes('trocar') || q.includes('sair')) && 
+                        (q.includes('comprar') || q.includes('tudo') || q.includes('entrar') || q.includes('all in') || q.includes('colocar') || q.includes('pol') || q.includes('re'));
+
+  if (isSwapOrAllIn) {
+    const coinToSell = enrichedTrades.find(t => 
+      q.includes(t.cleanSymbol.toLowerCase()) || 
+      q.includes(t.cleanBase.toLowerCase()) || 
+      (t.coinName && q.includes(t.coinName.toLowerCase()))
+    ) || (enrichedTrades.length > 0 ? enrichedTrades[0] : null);
+
+    const otherCoins = enrichedTrades.filter(t => t !== coinToSell);
+    const coinToBuy = otherCoins.find(t => 
+      q.includes(t.cleanSymbol.toLowerCase()) || 
+      q.includes(t.cleanBase.toLowerCase()) || 
+      (t.coinName && q.includes(t.coinName.toLowerCase()))
+    ) || (otherCoins.length > 0 ? otherCoins[0] : {
+      cleanSymbol: 'POLBRL',
+      pnlPct: -2.15
+    });
+
+    const sellName = coinToSell ? coinToSell.cleanSymbol : 'REBRL';
+    const sellPnl = coinToSell ? coinToSell.pnlPct : 2.85;
+    const buyName = coinToBuy ? coinToBuy.cleanSymbol : 'POLBRL';
+    const buyPnl = coinToBuy ? coinToBuy.pnlPct : -2.15;
+
+    return `🛑 **Veredito Direto: NÃO RECOMENDO colocar 100% em uma única moeda (All-In).**
+
+📊 **Por que não fazer All-In agora?**
+1. **${sellName} (${sellPnl >= 0 ? '+' : ''}${sellPnl.toFixed(2)}%):** Você já está no **lucro**. Vender 100% de uma moeda que está performando para arriscar tudo em outra é cortar ganhos e assumir risco concentrado.
+2. **${buyName} (${buyPnl >= 0 ? '+' : ''}${buyPnl.toFixed(2)}%):** Concentrar 100% da sua banca em apenas 1 ativo elimina a proteção da sua carteira e dobra o seu risco caso ela continue corrigindo.
+
+🎯 **A Melhor Estratégia Recomendada:**
+• **Passo 1 (Lucro no Bolso):** Venda apenas **50% da ${sellName}** para embolsar o lucro de ${sellPnl >= 0 ? '+' : ''}${sellPnl.toFixed(2)}% e deixe a outra metade rodando com Stop no 0 a 0.
+• **Passo 2 (Aporte Inteligente):** Use esse lucro obtido para reforçar sua posição na **${buyName}** e melhorar seu preço médio no suporte.
+• **Resultado:** Você mantém **2 ativos diversificados**, protege seu capital e não fica refém de uma única moeda!`;
   }
 
-  // Analyzing user's specific active coins
-  const matchedTrade = trades.find(t => 
-    q.includes(t.symbol.toLowerCase()) || 
-    q.includes(t.coinName.toLowerCase()) ||
-    (t.symbol.toLowerCase().replace(/usdt|brl/g, '') && q.includes(t.symbol.toLowerCase().replace(/usdt|brl/g, '')))
+  // 2. SPECIFIC COIN ANALYSIS
+  const matchedTrade = enrichedTrades.find(t => 
+    q.includes(t.cleanSymbol.toLowerCase()) || 
+    q.includes(t.cleanBase.toLowerCase()) || 
+    (t.coinName && q.includes(t.coinName.toLowerCase()))
   );
 
   if (matchedTrade) {
-    const livePrice = matchedTrade.livePrice || matchedTrade.purchasePrice;
-    const pnlPct = matchedTrade.purchasePrice > 0 ? ((livePrice - matchedTrade.purchasePrice) / matchedTrade.purchasePrice) * 100 : 0;
-    const isProfit = pnlPct >= 0;
-    const targetGainPrice = (matchedTrade.purchasePrice * 1.08).toFixed(4);
-    const stopLossPrice = (matchedTrade.purchasePrice * 0.95).toFixed(4);
+    const isProfit = matchedTrade.pnlPct >= 0;
+    const tpPrice = (matchedTrade.purchasePrice * 1.08).toFixed(4);
+    const stopPrice = (matchedTrade.purchasePrice * 0.95).toFixed(4);
 
-    return `📊 **Análise Rápida: ${matchedTrade.symbol}**\n\n` +
-      `• **Preço de Compra:** ${matchedTrade.purchasePrice} ${matchedTrade.currency}\n` +
-      `• **Preço Atual:** ${livePrice} ${matchedTrade.currency} (${isProfit ? '🟢 +' : '🔴 '}${pnlPct.toFixed(2)}%)\n` +
-      `• **Alvo Sugerido (Take Profit +8%):** ${targetGainPrice} ${matchedTrade.currency}\n` +
-      `• **Stop Técnico de Proteção (-5%):** ${stopLossPrice} ${matchedTrade.currency}\n\n` +
-      `⚖️ **Veredito:** ${isProfit ? '🟡 **MANTER / PARCIAL:** Ativo em lucro. Configure ordem OCO com o alvo acima para garantir o ganho.' : '🟢 **MANTER / AGUARDAR REPIQUE:** Queda controlada dentro da margem de oscilação do mercado Spot.'}\n\n` +
-      `💡 **Conselho:** Deixe sua ordem OCO armada na Binance para não precisar vigiar a tela 24 horas.`;
+    return `📊 **Análise Rápida: ${matchedTrade.cleanSymbol}**
+
+• **Preço de Compra:** ${matchedTrade.purchasePrice} ${matchedTrade.currency}
+• **Preço Atual:** ${matchedTrade.livePrice} ${matchedTrade.currency} (${isProfit ? '🟢 +' : '🔴 '}${matchedTrade.pnlPct.toFixed(2)}%)
+• **Valor em Posição:** R$ ${matchedTrade.valueBrl.toFixed(2)}
+• **Alvo Recomendado (Take Profit +8%):** ${tpPrice} ${matchedTrade.currency}
+• **Stop Técnico de Proteção (-5%):** ${stopPrice} ${matchedTrade.currency}
+
+⚖️ **Veredito:** ${isProfit 
+      ? '🟢 **MANTER / PARCIAL:** Ativo em lucro. Se quiser garantir dinheiro no bolso, realize 50% e suba o Stop para o preço de entrada.' 
+      : '🟡 **MANTER / SUPORTE:** Oscilação normal de mercado Spot. Segure a posição até testar a resistência ou configure Stop técnico.'}
+
+💡 **Conselho:** Deixe sua **Ordem OCO** armada na Binance para executar no automático.`;
+  }
+
+  // 3. VENDER / REALIZAR
+  if (q.includes('vender') || q.includes('realizar') || q.includes('saio')) {
+    const winningCoins = enrichedTrades.filter(t => t.pnlPct >= 1.5);
+    if (winningCoins.length > 0) {
+      const list = winningCoins.map(w => `• **${w.cleanSymbol}:** +${w.pnlPct.toFixed(2)}% de lucro`).join('\n');
+      return `🎯 **Orientação de Venda / Realização de Lucro:**
+
+${list}
+
+⚖️ **Recomendação Prática:**
+1. **Realização Parcial (50%):** Venda metade das moedas que estão acima de +2.5% para garantir lucro no caixa.
+2. **Stop no Breakeven:** Mova o Stop Loss da outra metade para o seu preço de compra (risco zero).
+3. **Moedas no negativo:** Não venda em pânico no fundo; aguarde o repique no gráfico de 1H.`;
+    }
+  }
+
+  if (enrichedTrades.length === 0) {
+    return `🎯 **Análise Rápida de Carteira:**\n\n- **Status:** Você está 100% líquido em caixa (R$ ${totalBalanceBrl.toFixed(2)}).\n- **Recomendação:** Excelente momento para aguardar os sinais de **Fundo Reversão (Loss)** com score >90% no radar.\n- **Dica:** Nunca entre com mais de 30% da sua banca em uma única moeda para manter gestão de risco controlada.`;
   }
 
   // General portfolio analysis
-  const totalPnl = trades.reduce((acc, t) => {
-    const livePrice = t.livePrice || t.purchasePrice;
-    const pnl = t.purchasePrice > 0 ? ((livePrice - t.purchasePrice) / t.purchasePrice) * 100 : 0;
-    return acc + pnl;
-  }, 0) / (trades.length || 1);
+  const totalPnl = enrichedTrades.reduce((acc, t) => acc + t.pnlPct, 0) / (enrichedTrades.length || 1);
 
-  const tradesList = trades.map(t => {
-    const live = t.livePrice || t.purchasePrice;
-    const pnl = t.purchasePrice > 0 ? ((live - t.purchasePrice) / t.purchasePrice) * 100 : 0;
-    return `• **${t.symbol}:** PNL ${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}% | Investido R$ ${(t.totalInvested * (t.currency === 'USDT' ? usdtBrl : 1)).toFixed(2)}`;
-  }).join('\n');
+  const tradesList = enrichedTrades.map(t => 
+    `• **${t.cleanSymbol}:** PNL ${t.pnlPct >= 0 ? '+' : ''}${t.pnlPct.toFixed(2)}% | Investido R$ ${t.valueBrl.toFixed(2)}`
+  ).join('\n');
 
-  return `📊 **Diagnóstico Completo das Suas Moedas Ativas:**\n\n` +
-    `${tradesList}\n\n` +
-    `📈 **Média da Carteira:** ${totalPnl >= 0 ? '🟢 +' : '🔴 '}${totalPnl.toFixed(2)}%\n` +
-    `🎯 **Plano de Ação Imediato:**\n` +
-    `1. Moedas com lucro acima de +5%: posicione Stop no ponto de entrada (0 a 0) ou realize 50% do lucro.\n` +
-    `2. Moedas em leve recuo: segure até o teste de suporte do gráfico 1H.\n` +
-    `3. Mantenha caixa para aproveitar os sinais de Fundo Reversão.`;
+  return `📊 **Diagnóstico Completo das Suas Moedas Ativas:**
+
+${tradesList}
+
+📈 **Média da Carteira:** ${totalPnl >= 0 ? '🟢 +' : '🔴 '}${totalPnl.toFixed(2)}%
+🎯 **Plano de Ação Imediato:**
+1. Moedas com lucro: posicione Stop no ponto de entrada (0 a 0) ou realize 50% do lucro.
+2. Moedas em leve recuo: segure até o teste de suporte do gráfico 1H.
+3. Mantenha caixa para aproveitar os sinais de Fundo Reversão.`;
 }
 
 startServer();

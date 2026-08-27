@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Bot, Send, Sparkles, X, RefreshCw, ChevronDown, ChevronUp, Copy, Check, MessageSquare, Shield, Target, Zap } from 'lucide-react';
 import { Trade } from '../types';
+import { analyzeCryptoQuestion } from '../utils/cryptoAIAdvisor';
 
 export interface ChatMessage {
   id: string;
@@ -143,22 +144,20 @@ export default function AIChatConsultant({
 
       setMessages(prev => [...prev, aiMsg]);
     } catch (err: any) {
-      // Offline / Local Instant Fallback
-      let fallbackText = `📊 **Análise Rápida das Suas Moedas:**\n\n`;
-      if (enrichedTrades.length > 0) {
-        enrichedTrades.forEach(t => {
-          const pnlPct = t.purchasePrice > 0 ? ((t.livePrice - t.purchasePrice) / t.purchasePrice) * 100 : 0;
-          fallbackText += `• **${t.symbol}:** PNL ${pnlPct >= 0 ? '+' : ''}${pnlPct.toFixed(2)}% | Posição: ${pnlPct >= 0 ? '🟢 Lucrando (Segurar ou Parcial)' : '🟡 Dentro do suporte'}\n`;
-        });
-        fallbackText += `\n⚖️ **Veredito Geral:** Mantenha ordens OCO armadas na Binance com alvo de +8% a +10% e Stop de -5%.`;
-      } else {
-        fallbackText += `Você está 100% líquido em caixa (R$ ${totalBalanceBrl.toFixed(2)}). Aguarde confluências de Fundo Reversão (Loss) com Score >90%.`;
-      }
+      // Offline / Local Instant Intelligent Analysis
+      const intelligentReply = analyzeCryptoQuestion(
+        textToSend,
+        trades,
+        totalBalanceBrl,
+        cashBalanceBrl,
+        usdtBrl,
+        marketPrices
+      );
 
       const aiMsg: ChatMessage = {
         id: `ai-fallback-${Date.now()}`,
         sender: 'assistant',
-        text: fallbackText,
+        text: intelligentReply,
         timestamp: Date.now()
       };
       setMessages(prev => [...prev, aiMsg]);
