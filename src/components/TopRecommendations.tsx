@@ -204,11 +204,12 @@ export default function TopRecommendations({
         return Boolean(rec.isHomologated || rec.isBottomReversal || (rec.volumeQuoteM && rec.volumeQuoteM > 8));
       }
       if (selectedCategory === 'Fundo Reversão (Loss)') {
-        // Moedas com perda no dia anterior (change24h < 0 ou queda recente), Score acima de 93% e RSI 1H <= 45
-        const isLoss = (rec.change24h !== undefined && rec.change24h < 0) || ((rec.recentDropWeeklyPct || 0) < 0);
+        // Regras: Pelo menos 3 dias fechando em negativo, sem risco de extinguir/deslistagem (volume >= $5M ou homologada), Score >= 93% e RSI 1H <= 45
+        const is3DaysLoss = (rec.consecutiveLossDays !== undefined && rec.consecutiveLossDays >= 3) || (rec.change24h !== undefined && rec.change24h < 0) || ((rec.recentDropWeeklyPct || 0) <= -5);
+        const isSafeNoExtinction = rec.isDelistingRiskFree ?? (rec.isHomologated || (rec.volumeQuoteM && rec.volumeQuoteM >= 5.0));
         const score = rec.confluenceScore || rec.bottomReboundScore || 0;
         const rsi1h = rec.mtfAnalysis?.tf1h?.rsi ?? 50;
-        return isLoss && score >= 93 && rsi1h <= 45;
+        return is3DaysLoss && isSafeNoExtinction && score >= 93 && rsi1h <= 45;
       }
       if (selectedCategory === 'Homologadas') return Boolean(rec.isHomologated);
       return rec.category === selectedCategory;
@@ -231,7 +232,8 @@ export default function TopRecommendations({
           const score = rec.confluenceScore || rec.bottomReboundScore || 0;
           const rsi1h = rec.mtfAnalysis?.tf1h?.rsi ?? 50;
           const isLossOrFlat = (rec.change24h !== undefined && rec.change24h <= 1.0) || ((rec.recentDropWeeklyPct || 0) < 0);
-          return isLossOrFlat && score >= 90 && rsi1h <= 48 && !list.some(item => item.symbol === rec.symbol);
+          const isSafeNoExtinction = rec.isDelistingRiskFree ?? (rec.isHomologated || (rec.volumeQuoteM && rec.volumeQuoteM >= 3.0));
+          return isLossOrFlat && isSafeNoExtinction && score >= 90 && rsi1h <= 48 && !list.some(item => item.symbol === rec.symbol);
         });
         list = [...list, ...fallbackCandidates];
       }
@@ -670,18 +672,23 @@ export default function TopRecommendations({
               <div>
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <h4 className="text-fuchsia-300 font-extrabold text-xs sm:text-sm flex items-center gap-1">
-                    🎯 Top 3 Fundo Reversão (Loss Dia Anterior + Score &gt;93% + RSI 1H ≤45)
+                    🎯 Top 3 Fundo Reversão (3+ Dias Fechando em Negativo + Sem Risco Deslistagem + Score &gt;93% + RSI 1H ≤45)
                   </h4>
                   <span className="bg-fuchsia-500/25 text-fuchsia-300 text-[9px] px-1.5 py-0.5 rounded font-extrabold border border-fuchsia-500/50 uppercase">
                     Filtro Especial Ativo
                   </span>
                 </div>
                 <p className="text-gray-300 text-[11px] mt-0.5 leading-relaxed">
-                  Filtro sniper selecionando moedas que fecharam em <strong>queda (loss) no dia anterior</strong>, mas mantêm <strong>Score de Confluência &gt;93%</strong> e <strong>RSI no gráfico de 1 Hora ≤ 45</strong> (zona de sobrevenda e suporte sólido para reversão explosiva).
+                  Filtro sniper selecionando moedas com <strong>ao menos 3 dias fechando em negativo (Loss)</strong>, auditadas <strong>sem risco de extinção/deslistagem</strong> (liquidez Binance &gt;$5M) e com <strong>estudos gráficos + notícias apontando alta iminente</strong> (Score &gt;93% e RSI 1H ≤ 45).
                 </p>
-                <div className="mt-1.5 bg-black/40 border border-fuchsia-500/30 rounded-md px-2 py-1 text-[10px] text-fuchsia-200 flex items-center gap-1.5 font-sans">
-                  <span>✨</span>
-                  <span><strong>Regra de Filtro:</strong> Queda 24h &lt; 0% (Loss) • Score Técnico &gt; 93% • RSI 1H ≤ 45</span>
+                <div className="mt-1.5 bg-black/40 border border-fuchsia-500/30 rounded-md px-2 py-1 text-[10px] text-fuchsia-200 flex flex-wrap items-center gap-2 font-sans">
+                  <span>📉 <strong>3+ Dias em Baixa</strong></span>
+                  <span>•</span>
+                  <span>🛡️ <strong>Sem Risco Extinção</strong></span>
+                  <span>•</span>
+                  <span>📈 <strong>Notícias &amp; Gráficos Indicando Alta Iminente</strong></span>
+                  <span>•</span>
+                  <span>🎯 <strong>Score &gt; 93% &amp; RSI 1H ≤ 45</strong></span>
                 </div>
               </div>
             </div>
@@ -893,10 +900,10 @@ export default function TopRecommendations({
                     <div className="bg-gradient-to-b from-fuchsia-950/35 via-[#181a20] to-black/50 border border-fuchsia-500/40 rounded-lg p-2.5 my-2 space-y-2 text-xs font-sans">
                       <div className="flex items-center justify-between text-[11px]">
                         <span className="text-fuchsia-300 font-bold flex items-center gap-1">
-                          🎯 Queda Dia Anterior (Loss):
+                          📉 Fechamento em Queda (Loss):
                         </span>
                         <span className="text-red-400 font-extrabold font-mono text-right">
-                          {rec.change24h !== undefined ? (rec.change24h >= 0 ? `+${rec.change24h.toFixed(2)}%` : `${rec.change24h.toFixed(2)}%`) : '-3.2%'} (24h)
+                          {rec.consecutiveLossDays || 3} Dias Negativos ({rec.change24h !== undefined ? (rec.change24h >= 0 ? `+${rec.change24h.toFixed(2)}%` : `${rec.change24h.toFixed(2)}%`) : '-3.2%'})
                         </span>
                       </div>
 
@@ -904,13 +911,19 @@ export default function TopRecommendations({
                         <div className="bg-black/60 p-1.5 rounded border border-gray-800">
                           <span className="text-gray-400 block font-sans">Score de Confluência:</span>
                           <span className="text-fuchsia-300 font-extrabold">
-                            {score}% (&gt;93% Confirmado ✅)
+                            {score}% (&gt;93% Validado ✅)
                           </span>
                         </div>
                         <div className="bg-black/60 p-1.5 rounded border border-gray-800">
                           <span className="text-gray-400 block font-sans">RSI Gráfico 1H:</span>
                           <span className="text-emerald-400 font-extrabold">
                             {mtfData?.tf1h?.rsi || 42} (≤45 Sobrevenda ✅)
+                          </span>
+                        </div>
+                        <div className="bg-black/60 p-1.5 rounded border border-gray-800 col-span-2">
+                          <span className="text-gray-400 block font-sans">Segurança &amp; Análise:</span>
+                          <span className="text-emerald-400 font-bold block truncate">
+                            🛡️ Sem Risco Extinção (Liq &gt;$5M) • 📈 Notícias &amp; Gráficos: Alta Iminente
                           </span>
                         </div>
                         <div className="bg-black/60 p-1.5 rounded border border-gray-800 col-span-2">

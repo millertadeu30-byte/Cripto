@@ -36,6 +36,10 @@ export interface Recommendation {
   bottomReboundScore?: number;        // Ex: 97
   bottomWhaleAbsorption?: string;     // Ex: "Baleias Acumulando no Fundo (Absorção Institucional)"
   bottomRiskLevel?: string;           // Ex: "Risco de Queda Mínimo / Fundo de Rocha"
+  // Fundo Reversão (Loss 3+ Dias) Extended Fields
+  consecutiveLossDays?: number;       // Mínimo de 3 dias fechando em negativo (ex: 3, 4, 5 dias)
+  isDelistingRiskFree?: boolean;      // Sem risco de extinção / deslistagem (Volume >$5M USD)
+  bullishNewsStatus?: string;         // Notícias e Análises apontando Alta Iminente
   // Scalping specific metrics (Foto / Solicitação de Scalp)
   scalpScore?: number;        // Pontuação de Scalp (Velocidade do Candle Verde + Volume Surge)
   scalpRank?: number;         // 1 = Top 1 Scalp, 2 = Top 2 Scalp

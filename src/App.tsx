@@ -14,6 +14,7 @@ import AddTradeModal from './components/AddTradeModal';
 import ProfitGoalConfigurator from './components/ProfitGoalConfigurator';
 import FirebaseSync from './components/FirebaseSync';
 import StepAlertBanner from './components/StepAlertBanner';
+import EmergencyNewsAlert, { EmergencyAlertData } from './components/EmergencyNewsAlert';
 import { getDeviceSyncId, saveToCloud, subscribeToCloud } from './lib/firebase';
 import { Trade, Recommendation } from './types';
 import { analyzeCoinCandleScenario } from './utils/candleUtils';
@@ -280,6 +281,26 @@ export default function App() {
     try {
       localStorage.setItem('binance_assistant_last_saved_ts', String(Date.now()));
     } catch (e) {}
+  };
+
+  // Emergency Bearish News Alert state
+  const [emergencyAlert, setEmergencyAlert] = useState<EmergencyAlertData | null>(null);
+
+  const triggerEmergencyBearishNewsAlert = (targetSymbol: string = 'BTCUSDT', customHeadline?: string) => {
+    const symbol = targetSymbol.toUpperCase();
+    const coinName = symbol.replace(/USDT$/, '').replace(/BRL$/, '');
+    const nowStr = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    
+    setEmergencyAlert({
+      id: `alert-${Date.now()}`,
+      symbol,
+      coinName,
+      headline: customHeadline || `Notícia de Última Hora: Alta pressão vendedora e anúncio de retração para ${coinName}!`,
+      summary: `Varredura de inteligência de notícias em tempo real confirmou alto risco de queda iminente para ${coinName} (${symbol}). Se você comprou ou possui posição aberta neste ativo, execute a VENDA imediata para preservar seus lucros ou estancar perdas.`,
+      timestamp: `${nowStr} (Notícia Confirmada)`,
+      severity: 'URGENT_SELL'
+    });
+    pushLog(`🚨 ALERTA URGENTE DE ÚLTIMA HORA: Notícia de queda para ${symbol}! Recomendação de Venda Imediata.`);
   };
 
   const handleUpdateCashBalance = (amount: number, currency: 'BRL' | 'USDT') => {
@@ -1205,6 +1226,13 @@ export default function App() {
       {/* Main Body */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         
+        {/* Alerta de Notícia de Última Hora (Confirmando Queda Urgent) */}
+        <EmergencyNewsAlert
+          alert={emergencyAlert}
+          onDismiss={() => setEmergencyAlert(null)}
+          onOpenTradeModal={(symbol) => handlePrefillAndOpenAddModal(symbol)}
+        />
+
         {/* Notificações e Alertas no Celular a cada 9% (+9%, +18% / -9%, -18%) */}
         <StepAlertBanner
           activeAlert={activeStepAlert}
@@ -1415,6 +1443,7 @@ export default function App() {
               onDeleteHistoryItem={handleDeleteHistoryItem}
               onClearHistory={handleClearHistory}
               usdtBrl={usdtBrl}
+              onTestEmergencyNewsAlert={() => triggerEmergencyBearishNewsAlert('BTCUSDT')}
             />
 
           </div>

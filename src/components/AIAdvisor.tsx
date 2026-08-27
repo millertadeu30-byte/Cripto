@@ -15,6 +15,7 @@ interface AIAdvisorProps {
   onDeleteHistoryItem?: (index: number) => void;
   onClearHistory?: () => void;
   usdtBrl?: number;
+  onTestEmergencyNewsAlert?: () => void;
 }
 
 export default function AIAdvisor({
@@ -25,10 +26,29 @@ export default function AIAdvisor({
   history = [],
   onDeleteHistoryItem,
   onClearHistory,
-  usdtBrl = 5.62
+  usdtBrl = 5.62,
+  onTestEmergencyNewsAlert
 }: AIAdvisorProps) {
   const [soundEnabled, setSoundEnabled] = useState(true);
-  const [isSectionMinimized, setIsSectionMinimized] = useState(false);
+  const [isSectionMinimized, setIsSectionMinimized] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('binance_assistant_ai_advisor_minimized');
+      return saved === 'true';
+    } catch (e) {
+      return false;
+    }
+  });
+
+  const toggleMinimize = () => {
+    setIsSectionMinimized(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem('binance_assistant_ai_advisor_minimized', next ? 'true' : 'false');
+      } catch (e) {}
+      return next;
+    });
+  };
+
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [historyFilter, setHistoryFilter] = useState<'all' | 'wins' | 'losses'>('all');
   const previousCountdown = useRef(countdown);
@@ -105,14 +125,21 @@ export default function AIAdvisor({
   const percentage = Math.min(100, Math.max(0, (countdown / totalWindow) * 100));
 
   return (
-    <div id="ai-advisor-section" className="bg-[#181a20] rounded-2xl border border-gray-800 p-6 space-y-6 flex flex-col justify-between h-full">
+    <div 
+      id="ai-advisor-section" 
+      className={`bg-[#181a20] rounded-2xl border border-gray-800 transition-all duration-300 ${
+        isSectionMinimized 
+          ? 'p-3 sm:p-4 h-auto self-start shadow-sm w-full space-y-2' 
+          : 'p-4 sm:p-6 space-y-6 flex flex-col justify-between h-full w-full'
+      }`}
+    >
       
       {/* Header with Minimize Toggle */}
       <div>
         <div className="flex items-center justify-between border-b border-gray-800 pb-3">
           <div className="flex items-center gap-2">
             <Cpu className="w-5 h-5 text-[#f0b90b]" />
-            <h3 className="text-lg font-bold text-white font-sans">Central de Inteligência IA</h3>
+            <h3 className="text-base sm:text-lg font-bold text-white font-sans">Central de Inteligência IA</h3>
           </div>
           
           <div className="flex items-center gap-2">
@@ -130,12 +157,12 @@ export default function AIAdvisor({
               {soundEnabled ? (
                 <>
                   <Volume2 className="w-4 h-4 text-green-400" />
-                  <span className="text-green-400">Som Ligado</span>
+                  <span className="text-green-400 hidden sm:inline">Som Ligado</span>
                 </>
               ) : (
                 <>
                   <VolumeX className="w-4 h-4 text-gray-500" />
-                  <span className="text-gray-500">Som Mudo</span>
+                  <span className="text-gray-500 hidden sm:inline">Som Mudo</span>
                 </>
               )}
             </button>
@@ -144,11 +171,11 @@ export default function AIAdvisor({
             <button
               type="button"
               id="toggle-minimize-ai-advisor-btn"
-              onClick={() => setIsSectionMinimized(prev => !prev)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#1e2026] hover:bg-[#282b33] border border-gray-700 hover:border-[#f0b90b] text-white text-xs font-bold transition-all cursor-pointer shadow-sm active:scale-95 shrink-0"
+              onClick={toggleMinimize}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#1e2026] hover:bg-[#282b33] border border-gray-700 hover:border-[#f0b90b] text-white text-xs font-bold transition-all cursor-pointer shadow-sm active:scale-95 shrink-0"
               title={isSectionMinimized ? "Expandir Central de Inteligência" : "Minimizar Central de Inteligência"}
             >
-              <span className="text-[11px] font-extrabold text-[#f0b90b]">{isSectionMinimized ? "▴ Expandir Quadro" : "▾ Minimizar"}</span>
+              <span className="text-[11px] font-extrabold text-[#f0b90b]">{isSectionMinimized ? "▴ Expandir" : "▾ Minimizar"}</span>
               {isSectionMinimized ? <ChevronDown className="w-4 h-4 text-[#f0b90b]" /> : <ChevronUp className="w-4 h-4 text-gray-300" />}
             </button>
           </div>
@@ -158,17 +185,20 @@ export default function AIAdvisor({
       {/* Collapsed State Summary */}
       {isSectionMinimized && (
         <div 
-          onClick={() => setIsSectionMinimized(false)}
-          className="bg-[#14151a] hover:bg-[#1a1d24] border border-gray-800 rounded-xl p-3.5 flex items-center justify-between cursor-pointer transition-all text-xs"
+          onClick={toggleMinimize}
+          className="bg-[#14151a] hover:bg-[#1a1d24] border border-gray-800 rounded-xl p-3 flex flex-wrap items-center justify-between cursor-pointer transition-all text-xs gap-2"
         >
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-base">🤖</span>
-            <span className="text-gray-300 font-semibold">
-              Central IA Minimizada • Próxima varredura em <strong className="text-[#f0b90b] font-mono">{formatTime(countdown)}</strong> ({pnlPerformance.totalWins} acertos)
+            <span className="text-gray-300 font-semibold text-xs">
+              Varredura em <strong className="text-[#f0b90b] font-mono">{formatTime(countdown)}</strong>
+            </span>
+            <span className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] px-2 py-0.5 rounded font-extrabold">
+              {pnlPerformance.totalWins} Vitórias
             </span>
           </div>
-          <span className="text-[#f0b90b] text-xs font-bold flex items-center gap-1">
-            Clique para ver telemetria <ChevronDown className="w-4 h-4" />
+          <span className="text-[#f0b90b] text-[11px] font-bold flex items-center gap-1 hover:underline">
+            Expandir Telemetria ▾
           </span>
         </div>
       )}
@@ -302,9 +332,23 @@ export default function AIAdvisor({
 
           {/* Block 3: Scrolling AI Activity Logs */}
           <div className="space-y-3">
-            <span className="text-xs text-gray-400 font-semibold flex items-center gap-1.5 uppercase font-sans">
-              <Zap className="w-3.5 h-3.5 text-[#f0b90b]" /> Telemetria de Ações da IA
-            </span>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs text-gray-400 font-semibold flex items-center gap-1.5 uppercase font-sans">
+                <Zap className="w-3.5 h-3.5 text-[#f0b90b]" /> Telemetria de Ações da IA
+              </span>
+
+              {onTestEmergencyNewsAlert && (
+                <button
+                  type="button"
+                  onClick={onTestEmergencyNewsAlert}
+                  className="text-[10px] text-red-400 hover:text-red-300 bg-red-950/40 hover:bg-red-900/60 border border-red-800/60 px-2 py-1 rounded-md flex items-center gap-1 font-sans cursor-pointer transition-all"
+                  title="Simular Alerta de Notícia de Última Hora (Venda Imediata)"
+                >
+                  <AlertOctagon className="w-3 h-3 text-red-400" />
+                  <span>Simular Alerta Queda</span>
+                </button>
+              )}
+            </div>
             <div className="bg-gray-950/60 rounded-xl p-4 border border-gray-900 h-44 overflow-y-auto font-mono text-[11px] leading-relaxed space-y-2 scrollbar-thin scrollbar-thumb-gray-800">
               {isAnalyzing && (
                 <div className="text-yellow-400 animate-pulse flex items-center gap-1">
