@@ -40,6 +40,8 @@ export interface Recommendation {
   consecutiveLossDays?: number;       // Mínimo de 3 dias fechando em negativo (ex: 3, 4, 5 dias)
   isDelistingRiskFree?: boolean;      // Sem risco de extinção / deslistagem (Volume >$5M USD)
   bullishNewsStatus?: string;         // Notícias e Análises apontando Alta Iminente
+  hadRecentPump?: boolean;            // Identifica se vinha de alta forte e teve apenas 1 vela vermelha (como ONT)
+  dailyCandlesSummary?: { dateFormatted: string; isRed: boolean; changePct: number }[];
   // Scalping specific metrics (Foto / Solicitação de Scalp)
   scalpScore?: number;        // Pontuação de Scalp (Velocidade do Candle Verde + Volume Surge)
   scalpRank?: number;         // 1 = Top 1 Scalp, 2 = Top 2 Scalp

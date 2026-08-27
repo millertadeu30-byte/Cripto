@@ -19,6 +19,7 @@ import { getDeviceSyncId, saveToCloud, subscribeToCloud } from './lib/firebase';
 import { Trade, Recommendation } from './types';
 import { analyzeCoinCandleScenario } from './utils/candleUtils';
 import { generateAdvancedMultiTimeframeRecommendations } from './utils/technicalAnalysis';
+import { batchFetchDailyKlinesForNegativeCoins } from './utils/binanceKlines';
 import { isVerifiedBinanceSpotCoin, VERIFIED_BINANCE_COINS } from './utils/verifiedCoins';
 import { 
   getNotificationPermission, 
@@ -653,6 +654,15 @@ export default function App() {
 
       setMarketPrices(prev => ({ ...prev, ...prices }));
 
+      // Asynchronously fetch 1D daily candles for coins with negative 24h performance
+      const negativeCoins = tickerData
+        .filter(t => t.symbol.endsWith('USDT') && parseFloat(t.priceChangePercent) < 0)
+        .sort((a, b) => parseFloat(a.priceChangePercent) - parseFloat(b.priceChangePercent))
+        .map(t => t.symbol);
+      if (negativeCoins.length > 0) {
+        batchFetchDailyKlinesForNegativeCoins(negativeCoins);
+      }
+
       // Update active trades with fresh prices and check 9% step notifications
       setTrades(prevTrades => 
         prevTrades.map(trade => {
@@ -1168,6 +1178,18 @@ export default function App() {
     setIsAddModalOpen(true);
   };
 
+  const handleOpenAddTradeForSymbol = (symbol: string) => {
+    const livePrice = marketPrices[symbol] || 0;
+    const base = symbol.replace(/USDT$/, '').replace(/BRL$/, '');
+    setPrefilledTrade({
+      symbol,
+      coinName: base,
+      price: livePrice,
+      currency: symbol.endsWith('BRL') ? 'BRL' : 'USDT'
+    });
+    setIsAddModalOpen(true);
+  };
+
   // Compute stats for history
   const pnlPerformance = history.reduce((acc, curr) => {
     if (curr.pnlBrl >= 0) {
@@ -1230,7 +1252,7 @@ export default function App() {
         <EmergencyNewsAlert
           alert={emergencyAlert}
           onDismiss={() => setEmergencyAlert(null)}
-          onOpenTradeModal={(symbol) => handlePrefillAndOpenAddModal(symbol)}
+          onOpenTradeModal={(symbol) => handleOpenAddTradeForSymbol(symbol)}
         />
 
         {/* Notificações e Alertas no Celular a cada 9% (+9%, +18% / -9%, -18%) */}

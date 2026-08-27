@@ -7,6 +7,7 @@ import {
   isHomologatedCoin 
 } from './verifiedCoins';
 import { analyze5MinCandle } from './candleUtils';
+import { getCachedDailyLossAnalysis } from './binanceKlines';
 
 export interface BinanceKlineRaw {
   openTime: number;
@@ -534,6 +535,7 @@ export function generateAdvancedMultiTimeframeRecommendations(
     const exitTimeStr = exitDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
     const safeSupportPrice = cand.livePrice * 0.985;
+    const dailyAnalysis = getCachedDailyLossAnalysis(cand.symbol, cand.change24h, cand.volumeM);
 
     const reasoning = isMicroDumping
       ? `Auditoria Multi-Período Binance (1D, 4H, 1H, 15M e 5M): ${cand.name} tem forte confluência macro (${mtf.score}%), porém a micro-vela de 5M está em correção/retração técnica. Recomendação: Não compre a mercado no meio da queda. Aguarde a abertura da vela das ${entryTimeStr} com confirmação de reversão ou posicione Ordem Limite no suporte de $${formatNumber(safeSupportPrice)} para buscar a meta de +${item.targetProfitPct}% com Stop Loss em $${formatNumber(item.stopLossPrice)}.`
@@ -581,8 +583,10 @@ export function generateAdvancedMultiTimeframeRecommendations(
       bottomReboundScore: item.bottomReboundScore,
       reversalExplosionWindow: item.reversalExplosionWindow,
       // Fundo Reversão Loss (3+ Dias Fechando Negativo + Sem Risco de Extinção + Notícias & Gráficos com Alta Iminente)
-      consecutiveLossDays: cand.change24h < 0 ? Math.max(3, Math.min(6, Math.floor(3 + Math.abs(cand.change24h) * 0.25 + (symbolHash % 3)))) : 0,
-      isDelistingRiskFree: Boolean(cand.volumeM >= 5.0 || isHomologatedCoin(cand.base)),
+      consecutiveLossDays: dailyAnalysis.consecutiveLossDays,
+      isDelistingRiskFree: dailyAnalysis.isDelistingRiskFree || isHomologatedCoin(cand.base),
+      hadRecentPump: dailyAnalysis.hadRecentPump,
+      dailyCandlesSummary: dailyAnalysis.dailyCandlesSummary,
       bullishNewsStatus: '📈 Notícias & Análises Gráficas: Reversão e Alta Iminente (Ponteiros de Compra)',
       change24h: cand.change24h,
       volumeQuoteM: cand.volumeM,

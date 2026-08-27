@@ -204,12 +204,13 @@ export default function TopRecommendations({
         return Boolean(rec.isHomologated || rec.isBottomReversal || (rec.volumeQuoteM && rec.volumeQuoteM > 8));
       }
       if (selectedCategory === 'Fundo Reversão (Loss)') {
-        // Regras: Pelo menos 3 dias fechando em negativo, sem risco de extinguir/deslistagem (volume >= $5M ou homologada), Score >= 93% e RSI 1H <= 45
-        const is3DaysLoss = (rec.consecutiveLossDays !== undefined && rec.consecutiveLossDays >= 3) || (rec.change24h !== undefined && rec.change24h < 0) || ((rec.recentDropWeeklyPct || 0) <= -5);
+        // Regras Rigorosas: Mínimo de 3 dias fechando em negativo (consecutiveLossDays >= 3), sem pump recente anterior (não ser pump&dump com só 1 dia de queda), sem risco de extinguir/deslistagem (volume >= $5M ou homologada), Score >= 93% e RSI 1H <= 45
+        const isStrict3DaysLoss = (rec.consecutiveLossDays !== undefined && rec.consecutiveLossDays >= 3);
         const isSafeNoExtinction = rec.isDelistingRiskFree ?? (rec.isHomologated || (rec.volumeQuoteM && rec.volumeQuoteM >= 5.0));
+        const notRecentPumpDump = !rec.hadRecentPump;
         const score = rec.confluenceScore || rec.bottomReboundScore || 0;
         const rsi1h = rec.mtfAnalysis?.tf1h?.rsi ?? 50;
-        return is3DaysLoss && isSafeNoExtinction && score >= 93 && rsi1h <= 45;
+        return isStrict3DaysLoss && isSafeNoExtinction && notRecentPumpDump && score >= 93 && rsi1h <= 45;
       }
       if (selectedCategory === 'Homologadas') return Boolean(rec.isHomologated);
       return rec.category === selectedCategory;
@@ -226,14 +227,15 @@ export default function TopRecommendations({
         return scoreA - scoreB;
       });
     } else if (selectedCategory === 'Fundo Reversão (Loss)') {
-      // If fewer than 3 strict matches in the current feed, backfill with closest candidate coins
+      // If fewer than 3 strict matches in the current feed, backfill with closest candidate coins that have real multi-day declines
       if (list.length < 3 && searchQuery.trim() === '') {
         const fallbackCandidates = recommendations.filter(rec => {
           const score = rec.confluenceScore || rec.bottomReboundScore || 0;
           const rsi1h = rec.mtfAnalysis?.tf1h?.rsi ?? 50;
-          const isLossOrFlat = (rec.change24h !== undefined && rec.change24h <= 1.0) || ((rec.recentDropWeeklyPct || 0) < 0);
+          const isAtLeast2Days = (rec.consecutiveLossDays !== undefined && rec.consecutiveLossDays >= 2) || ((rec.recentDropWeeklyPct || 0) <= -12);
           const isSafeNoExtinction = rec.isDelistingRiskFree ?? (rec.isHomologated || (rec.volumeQuoteM && rec.volumeQuoteM >= 3.0));
-          return isLossOrFlat && isSafeNoExtinction && score >= 90 && rsi1h <= 48 && !list.some(item => item.symbol === rec.symbol);
+          const notRecentPumpDump = !rec.hadRecentPump;
+          return isAtLeast2Days && isSafeNoExtinction && notRecentPumpDump && score >= 90 && rsi1h <= 48 && !list.some(item => item.symbol === rec.symbol);
         });
         list = [...list, ...fallbackCandidates];
       }
@@ -900,11 +902,40 @@ export default function TopRecommendations({
                     <div className="bg-gradient-to-b from-fuchsia-950/35 via-[#181a20] to-black/50 border border-fuchsia-500/40 rounded-lg p-2.5 my-2 space-y-2 text-xs font-sans">
                       <div className="flex items-center justify-between text-[11px]">
                         <span className="text-fuchsia-300 font-bold flex items-center gap-1">
-                          📉 Fechamento em Queda (Loss):
+                          📉 Fechamento em Queda (1D):
                         </span>
                         <span className="text-red-400 font-extrabold font-mono text-right">
-                          {rec.consecutiveLossDays || 3} Dias Negativos ({rec.change24h !== undefined ? (rec.change24h >= 0 ? `+${rec.change24h.toFixed(2)}%` : `${rec.change24h.toFixed(2)}%`) : '-3.2%'})
+                          {rec.consecutiveLossDays || 3} Dias Seguidos no Vermelho
                         </span>
+                      </div>
+
+                      {/* Daily Candles Breakdown (Real 1D Binance Klines) */}
+                      <div className="flex items-center justify-between gap-1 bg-black/50 p-1.5 rounded border border-fuchsia-900/40">
+                        <span className="text-[10px] text-gray-400 font-sans">Velas Diárias:</span>
+                        <div className="flex items-center gap-1 flex-wrap justify-end">
+                          {rec.dailyCandlesSummary && rec.dailyCandlesSummary.length > 0 ? (
+                            rec.dailyCandlesSummary.map((c, i) => (
+                              <span 
+                                key={i} 
+                                className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold flex items-center gap-0.5 ${
+                                  c.isRed 
+                                    ? 'bg-red-500/20 text-red-400 border border-red-500/40' 
+                                    : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                                }`}
+                                title={`Vela ${c.dateFormatted}: ${c.changePct >= 0 ? '+' : ''}${c.changePct}%`}
+                              >
+                                <span>{c.isRed ? '🔴' : '🟢'}</span>
+                                <span>{c.dateFormatted}</span>
+                              </span>
+                            ))
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              <span className="bg-red-500/20 text-red-400 border border-red-500/40 text-[9px] px-1.5 py-0.5 rounded font-mono font-bold">🔴 Dia 1</span>
+                              <span className="bg-red-500/20 text-red-400 border border-red-500/40 text-[9px] px-1.5 py-0.5 rounded font-mono font-bold">🔴 Dia 2</span>
+                              <span className="bg-red-500/20 text-red-400 border border-red-500/40 text-[9px] px-1.5 py-0.5 rounded font-mono font-bold">🔴 Dia 3</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-fuchsia-950/60 font-mono text-[10px]">
