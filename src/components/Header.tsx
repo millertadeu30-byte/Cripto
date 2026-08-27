@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Eye, EyeOff, PlusCircle, RefreshCw, AlertCircle, BookOpen, TrendingUp, HelpCircle, Pencil, Check, X, Calculator, Copy, ClipboardCheck, Sparkles } from 'lucide-react';
 import { Trade } from '../types';
+import AIChatConsultant from './AIChatConsultant';
 
 interface HeaderProps {
   trades: Trade[];
@@ -516,6 +517,19 @@ export default function Header({
                   </button>
                 </div>
               )}
+
+              {/* IA Consultora Cripto (Campo de Conversa, Análise Rápida & Conselhos) */}
+              <div className="mt-3">
+                <AIChatConsultant
+                  trades={trades}
+                  marketPrices={marketPrices}
+                  totalBalanceBrl={totalBrl}
+                  totalBalanceUsdt={totalUsdt}
+                  cashBalanceBrl={cashBalanceBrl}
+                  usdtBrl={usdtBrl}
+                  displayCurrency={displayCurrency}
+                />
+              </div>
             </div>
 
             {/* Discrete Active Investments Breakdown per Asset on Main Panel */}
