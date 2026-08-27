@@ -658,7 +658,11 @@ export default function App() {
       const negativeCoins = tickerData
         .filter(t => t.symbol.endsWith('USDT') && parseFloat(t.priceChangePercent) < 0)
         .sort((a, b) => parseFloat(a.priceChangePercent) - parseFloat(b.priceChangePercent))
-        .map(t => t.symbol);
+        .map(t => ({
+          symbol: t.symbol,
+          change24h: parseFloat(t.priceChangePercent) || 0,
+          volumeM: (parseFloat(t.quoteVolume) || 0) / 1000000
+        }));
       if (negativeCoins.length > 0) {
         batchFetchDailyKlinesForNegativeCoins(negativeCoins);
       }

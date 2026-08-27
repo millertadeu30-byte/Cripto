@@ -902,16 +902,16 @@ export default function TopRecommendations({
                     <div className="bg-gradient-to-b from-fuchsia-950/35 via-[#181a20] to-black/50 border border-fuchsia-500/40 rounded-lg p-2.5 my-2 space-y-2 text-xs font-sans">
                       <div className="flex items-center justify-between text-[11px]">
                         <span className="text-fuchsia-300 font-bold flex items-center gap-1">
-                          📉 Fechamento em Queda (1D):
+                          📉 Sequência Recente de Queda (1D):
                         </span>
                         <span className="text-red-400 font-extrabold font-mono text-right">
-                          {rec.consecutiveLossDays || 3} Dias Seguidos no Vermelho
+                          {rec.consecutiveLossDays || 3} Dias Seguidos (Até Hoje)
                         </span>
                       </div>
 
-                      {/* Daily Candles Breakdown (Real 1D Binance Klines) */}
+                      {/* Daily Candles Breakdown (Real 1D Binance Klines Anchored to Current Date) */}
                       <div className="flex items-center justify-between gap-1 bg-black/50 p-1.5 rounded border border-fuchsia-900/40">
-                        <span className="text-[10px] text-gray-400 font-sans">Velas Diárias:</span>
+                        <span className="text-[10px] text-gray-400 font-sans whitespace-nowrap">Velas Diárias:</span>
                         <div className="flex items-center gap-1 flex-wrap justify-end">
                           {rec.dailyCandlesSummary && rec.dailyCandlesSummary.length > 0 ? (
                             rec.dailyCandlesSummary.map((c, i) => (
@@ -930,9 +930,9 @@ export default function TopRecommendations({
                             ))
                           ) : (
                             <div className="flex items-center gap-1">
-                              <span className="bg-red-500/20 text-red-400 border border-red-500/40 text-[9px] px-1.5 py-0.5 rounded font-mono font-bold">🔴 Dia 1</span>
-                              <span className="bg-red-500/20 text-red-400 border border-red-500/40 text-[9px] px-1.5 py-0.5 rounded font-mono font-bold">🔴 Dia 2</span>
-                              <span className="bg-red-500/20 text-red-400 border border-red-500/40 text-[9px] px-1.5 py-0.5 rounded font-mono font-bold">🔴 Dia 3</span>
+                              <span className="bg-red-500/20 text-red-400 border border-red-500/40 text-[9px] px-1.5 py-0.5 rounded font-mono font-bold">🔴 D-3</span>
+                              <span className="bg-red-500/20 text-red-400 border border-red-500/40 text-[9px] px-1.5 py-0.5 rounded font-mono font-bold">🔴 Ontem</span>
+                              <span className="bg-red-500/20 text-red-400 border border-red-500/40 text-[9px] px-1.5 py-0.5 rounded font-mono font-bold">🔴 Hoje</span>
                             </div>
                           )}
                         </div>
