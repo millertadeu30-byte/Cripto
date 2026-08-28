@@ -20,6 +20,7 @@ export interface CoinDailyLossAnalysis {
   symbol: string;
   consecutiveLossDays: number;
   is3DaysConsecutiveLoss: boolean;
+  is3To6DaysConsecutiveLoss: boolean;
   isDelistingRiskFree: boolean;
   hadRecentPump: boolean;
   totalLossStreakPct: number;
@@ -61,7 +62,7 @@ export function generateCurrentDateDailyCandles(
   nowMs: number = Date.now()
 ): DailyCandle[] {
   const candles: DailyCandle[] = [];
-  const daysToShow = Math.max(3, Math.min(5, consecutiveDays + 1));
+  const daysToShow = Math.max(4, Math.min(8, Math.max(3, consecutiveDays) + 1));
 
   let seed = 0;
   for (let i = 0; i < symbol.length; i++) seed += symbol.charCodeAt(i);
@@ -184,12 +185,13 @@ export function analyzeRawKlines(
     }
   }
 
-  const recentCandles = parsedCandles.slice(-Math.max(3, Math.min(5, consecutiveLossDays + 1)));
+  const recentCandles = parsedCandles.slice(-Math.max(4, Math.min(8, consecutiveLossDays + 1)));
 
   const analysis: CoinDailyLossAnalysis = {
     symbol,
     consecutiveLossDays,
-    is3DaysConsecutiveLoss: consecutiveLossDays >= 3,
+    is3DaysConsecutiveLoss: consecutiveLossDays >= 3 && consecutiveLossDays <= 6,
+    is3To6DaysConsecutiveLoss: consecutiveLossDays >= 3 && consecutiveLossDays <= 6,
     isDelistingRiskFree: volume24hM >= 5.0,
     hadRecentPump,
     totalLossStreakPct: parseFloat(totalLossStreakPct.toFixed(2)),
@@ -208,7 +210,7 @@ export function analyzeRawKlines(
  */
 export async function fetchBinanceDailyKlines(
   symbol: string, 
-  change24h: number = 0,
+  change24h: number = 0, 
   volume24hM: number = 5.0
 ): Promise<CoinDailyLossAnalysis | null> {
   if (pendingFetches.has(symbol)) return klinesCache.get(symbol) || null;
@@ -216,7 +218,7 @@ export async function fetchBinanceDailyKlines(
   try {
     pendingFetches.add(symbol);
     const nowMs = Date.now();
-    const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1d&limit=8&endTime=${nowMs}`;
+    const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1d&limit=10&endTime=${nowMs}`;
     const res = await fetch(url);
     if (!res.ok) {
       throw new Error(`Binance klines status ${res.status}`);
@@ -237,7 +239,7 @@ export async function fetchBinanceDailyKlines(
 
 /**
  * Synchronously retrieves cached 1D Kline analysis or computes an accurate current-date anchored evaluation.
- * GUARANTEES that dates are always TODAY (D-0), ONTEM (D-1), ANTEONTEM (D-2), and D-3.
+ * GUARANTEES that dates are always TODAY (D-0), ONTEM (D-1), ANTEONTEM (D-2), and D-3 to D-6.
  */
 export function getCachedDailyLossAnalysis(
   symbol: string, 
@@ -265,10 +267,10 @@ export function getCachedDailyLossAnalysis(
   let fallbackLossDays = 0;
   if (change24h < 0) {
     const mod = seedSum % 5;
-    if (change24h <= -10 || (change24h <= -4.5 && mod >= 2)) {
-      // 3 to 4 days of loss
-      fallbackLossDays = 3 + (mod % 2);
-    } else if (change24h <= -3.0) {
+    if (change24h <= -8 || (change24h <= -4.0 && mod >= 1)) {
+      // 3 to 6 days of loss
+      fallbackLossDays = 3 + (mod % 4); // 3, 4, 5, or 6 days
+    } else if (change24h <= -2.5) {
       fallbackLossDays = 2;
     } else {
       fallbackLossDays = 1;
@@ -285,7 +287,8 @@ export function getCachedDailyLossAnalysis(
   const analysis: CoinDailyLossAnalysis = {
     symbol,
     consecutiveLossDays: fallbackLossDays,
-    is3DaysConsecutiveLoss: fallbackLossDays >= 3,
+    is3DaysConsecutiveLoss: fallbackLossDays >= 3 && fallbackLossDays <= 6,
+    is3To6DaysConsecutiveLoss: fallbackLossDays >= 3 && fallbackLossDays <= 6,
     isDelistingRiskFree: volume24hM >= 5.0,
     hadRecentPump: false,
     totalLossStreakPct: Math.abs(change24h) * Math.max(1, fallbackLossDays * 0.8),

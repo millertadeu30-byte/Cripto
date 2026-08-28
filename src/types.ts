@@ -36,8 +36,8 @@ export interface Recommendation {
   bottomReboundScore?: number;        // Ex: 97
   bottomWhaleAbsorption?: string;     // Ex: "Baleias Acumulando no Fundo (Absorção Institucional)"
   bottomRiskLevel?: string;           // Ex: "Risco de Queda Mínimo / Fundo de Rocha"
-  // Fundo Reversão (Loss 3+ Dias) Extended Fields
-  consecutiveLossDays?: number;       // Mínimo de 3 dias fechando em negativo (ex: 3, 4, 5 dias)
+  // Fundo Reversão (Loss 3 a 6 Dias) Extended Fields
+  consecutiveLossDays?: number;       // De 3 a 6 dias fechando em negativo (Loss)
   isDelistingRiskFree?: boolean;      // Sem risco de extinção / deslistagem (Volume >$5M USD)
   bullishNewsStatus?: string;         // Notícias e Análises apontando Alta Iminente
   hadRecentPump?: boolean;            // Identifica se vinha de alta forte e teve apenas 1 vela vermelha (como ONT)

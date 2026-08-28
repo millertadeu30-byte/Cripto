@@ -582,7 +582,7 @@ export function generateAdvancedMultiTimeframeRecommendations(
       bottomRiskLevel: item.bottomRiskLevel,
       bottomReboundScore: item.bottomReboundScore,
       reversalExplosionWindow: item.reversalExplosionWindow,
-      // Fundo Reversão Loss (3+ Dias Fechando Negativo + Sem Risco de Extinção + Notícias & Gráficos com Alta Iminente)
+      // Fundo Reversão Loss (3 a 6 Dias Fechando Negativo + Sem Risco de Extinção + Notícias & Gráficos com Alta Iminente)
       consecutiveLossDays: dailyAnalysis.consecutiveLossDays,
       isDelistingRiskFree: dailyAnalysis.isDelistingRiskFree || isHomologatedCoin(cand.base),
       hadRecentPump: dailyAnalysis.hadRecentPump,

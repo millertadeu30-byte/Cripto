@@ -37,7 +37,7 @@ const CATEGORY_TABS: CategoryTabConfig[] = [
   { id: 'Homologadas', shortLabel: 'Homologadas', fullLabel: 'Homologadas (Seguras p/ Noite)', icon: '🛡️', badge: 'Seguras', badgeColor: 'bg-emerald-500/20 text-emerald-300' },
   { id: 'Scalp Rápido', shortLabel: 'Scalp (Top 3)', fullLabel: 'Scalp Rápido (Candle Verde & Volume 1H)', icon: '⚡', badge: 'Top 3', badgeColor: 'bg-amber-500/20 text-amber-300' },
   { id: 'Fundo & Explosão', shortLabel: 'Fundo (Top 3)', fullLabel: 'Fundo Histórico & Reversão (Explosão 1D - 1W)', icon: '💎', badge: 'Top 3 Fundo', badgeColor: 'bg-cyan-500/20 text-cyan-300' },
-  { id: 'Fundo Reversão (Loss)', shortLabel: 'Fundo Loss (Top 3)', fullLabel: 'Fundo Reversão Loss (Dia Anterior Negativo + Score >93% + RSI 1H ≤45)', icon: '🎯', badge: 'Loss + 93%', badgeColor: 'bg-fuchsia-500/20 text-fuchsia-300' },
+  { id: 'Fundo Reversão (Loss)', shortLabel: 'Fundo Loss (Top 3)', fullLabel: 'Fundo Reversão Loss (3 a 6 Dias Negativos + Score >93% + RSI 1H ≤45)', icon: '🎯', badge: 'Loss + 93%', badgeColor: 'bg-fuchsia-500/20 text-fuchsia-300' },
   { id: 'Todas', shortLabel: 'Todas', fullLabel: 'Todas as Moedas', icon: '🌟' },
   { id: 'Memes', shortLabel: 'Memes', fullLabel: 'Memecoins (PEPE, DOGE...)', icon: '🐸', badge: 'Alta Vol.', badgeColor: 'bg-red-500/20 text-red-400' },
   { id: 'Trending & Novas', shortLabel: 'Em Alta', fullLabel: 'Altcoins em Alta (SUI, NEAR...)', icon: '🚀', badge: 'Hot', badgeColor: 'bg-yellow-500/20 text-yellow-400' },
@@ -204,13 +204,13 @@ export default function TopRecommendations({
         return Boolean(rec.isHomologated || rec.isBottomReversal || (rec.volumeQuoteM && rec.volumeQuoteM > 8));
       }
       if (selectedCategory === 'Fundo Reversão (Loss)') {
-        // Regras Rigorosas: Mínimo de 3 dias fechando em negativo (consecutiveLossDays >= 3), sem pump recente anterior (não ser pump&dump com só 1 dia de queda), sem risco de extinguir/deslistagem (volume >= $5M ou homologada), Score >= 93% e RSI 1H <= 45
-        const isStrict3DaysLoss = (rec.consecutiveLossDays !== undefined && rec.consecutiveLossDays >= 3);
+        // Regras Rigorosas: De 3 a 6 dias fechando em negativo (consecutiveLossDays >= 3 && consecutiveLossDays <= 6), sem pump recente anterior (não ser pump&dump com só 1 dia de queda), sem risco de extinguir/deslistagem (volume >= $5M ou homologada), Score >= 93% e RSI 1H <= 45
+        const isStrict3To6DaysLoss = (rec.consecutiveLossDays !== undefined && rec.consecutiveLossDays >= 3 && rec.consecutiveLossDays <= 6);
         const isSafeNoExtinction = rec.isDelistingRiskFree ?? (rec.isHomologated || (rec.volumeQuoteM && rec.volumeQuoteM >= 5.0));
         const notRecentPumpDump = !rec.hadRecentPump;
         const score = rec.confluenceScore || rec.bottomReboundScore || 0;
         const rsi1h = rec.mtfAnalysis?.tf1h?.rsi ?? 50;
-        return isStrict3DaysLoss && isSafeNoExtinction && notRecentPumpDump && score >= 93 && rsi1h <= 45;
+        return isStrict3To6DaysLoss && isSafeNoExtinction && notRecentPumpDump && score >= 93 && rsi1h <= 45;
       }
       if (selectedCategory === 'Homologadas') return Boolean(rec.isHomologated);
       return rec.category === selectedCategory;
@@ -232,10 +232,10 @@ export default function TopRecommendations({
         const fallbackCandidates = recommendations.filter(rec => {
           const score = rec.confluenceScore || rec.bottomReboundScore || 0;
           const rsi1h = rec.mtfAnalysis?.tf1h?.rsi ?? 50;
-          const isAtLeast2Days = (rec.consecutiveLossDays !== undefined && rec.consecutiveLossDays >= 2) || ((rec.recentDropWeeklyPct || 0) <= -12);
+          const isAtLeast3To6Days = (rec.consecutiveLossDays !== undefined && rec.consecutiveLossDays >= 3 && rec.consecutiveLossDays <= 6) || ((rec.recentDropWeeklyPct || 0) <= -12);
           const isSafeNoExtinction = rec.isDelistingRiskFree ?? (rec.isHomologated || (rec.volumeQuoteM && rec.volumeQuoteM >= 3.0));
           const notRecentPumpDump = !rec.hadRecentPump;
-          return isAtLeast2Days && isSafeNoExtinction && notRecentPumpDump && score >= 90 && rsi1h <= 48 && !list.some(item => item.symbol === rec.symbol);
+          return isAtLeast3To6Days && isSafeNoExtinction && notRecentPumpDump && score >= 90 && rsi1h <= 48 && !list.some(item => item.symbol === rec.symbol);
         });
         list = [...list, ...fallbackCandidates];
       }
@@ -674,17 +674,17 @@ export default function TopRecommendations({
               <div>
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <h4 className="text-fuchsia-300 font-extrabold text-xs sm:text-sm flex items-center gap-1">
-                    🎯 Top 3 Fundo Reversão (3+ Dias Fechando em Negativo + Sem Risco Deslistagem + Score &gt;93% + RSI 1H ≤45)
+                    🎯 Top 3 Fundo Reversão (3 a 6 Dias Fechando em Negativo + Sem Risco Deslistagem + Score &gt;93% + RSI 1H ≤45)
                   </h4>
                   <span className="bg-fuchsia-500/25 text-fuchsia-300 text-[9px] px-1.5 py-0.5 rounded font-extrabold border border-fuchsia-500/50 uppercase">
                     Filtro Especial Ativo
                   </span>
                 </div>
                 <p className="text-gray-300 text-[11px] mt-0.5 leading-relaxed">
-                  Filtro sniper selecionando moedas com <strong>ao menos 3 dias fechando em negativo (Loss)</strong>, auditadas <strong>sem risco de extinção/deslistagem</strong> (liquidez Binance &gt;$5M) e com <strong>estudos gráficos + notícias apontando alta iminente</strong> (Score &gt;93% e RSI 1H ≤ 45).
+                  Filtro sniper selecionando moedas com <strong>de 3 a 6 dias fechando em negativo (Loss)</strong>, auditadas <strong>sem risco de extinção/deslistagem</strong> (liquidez Binance &gt;$5M) e com <strong>estudos gráficos + notícias apontando alta iminente</strong> (Score &gt;93% e RSI 1H ≤ 45).
                 </p>
                 <div className="mt-1.5 bg-black/40 border border-fuchsia-500/30 rounded-md px-2 py-1 text-[10px] text-fuchsia-200 flex flex-wrap items-center gap-2 font-sans">
-                  <span>📉 <strong>3+ Dias em Baixa</strong></span>
+                  <span>📉 <strong>3 a 6 Dias em Baixa</strong></span>
                   <span>•</span>
                   <span>🛡️ <strong>Sem Risco Extinção</strong></span>
                   <span>•</span>
@@ -905,7 +905,7 @@ export default function TopRecommendations({
                           📉 Sequência Recente de Queda (1D):
                         </span>
                         <span className="text-red-400 font-extrabold font-mono text-right">
-                          {rec.consecutiveLossDays || 3} Dias Seguidos (Até Hoje)
+                          {rec.consecutiveLossDays || 3} Dias Seguidos (3 a 6 Dias)
                         </span>
                       </div>
 
